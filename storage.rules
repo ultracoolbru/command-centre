@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Avatars: Publicly readable (optional), writable only by authenticated owner
+    // Consider if avatars should be public or only user-readable.
+    // For public read access: allow read;
+    // For user-only read access (owner or specific logic): allow read: if <condition>;
+    match /avatars/{userId}/{allPaths=**} {
+      allow read; // Defaulting to public read for simplicity, adjust as needed.
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // You can add other rules for different storage paths here.
+    // For example, if you have user-specific files:
+    // match /userFiles/{userId}/{allPaths=**} {
+    //   allow read, write: if request.auth != null && request.auth.uid == userId;
+    // }
+  }
+}
