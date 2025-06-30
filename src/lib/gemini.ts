@@ -219,17 +219,33 @@ export async function generateWeeklyOverview(data: any) {
     const result = await model.generateContent(prompt);
     const response = result.response.text();
     try {
-      const data = JSON.parse(response);
-      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      // It's common for Gemini to return plain text for this kind of structured prompt, not JSON.
+      // So, we directly use `response.text()` if no explicit JSON format was requested in the prompt for the *entire* output.
+      // The prompt for weekly overview asks for a specific text format, not a JSON wrapper for the whole thing.
+      const aiText = response; // Directly use the text response
+      if (!aiText || aiText.trim() === "") {
+        console.warn("Gemini returned empty text for weekly overview.");
+        return [{ title: 'AI Response Empty', description: 'AI returned an empty response for the weekly overview.' }];
+      }
       const summaries = parseGeminiSummaries(aiText);
 
-      return summaries;
-    } catch (parseError) {
-      // If parsing fails, return a default structured response
-      return [{
-        title: 'Weekly Overview Analysis',
-        description: 'Weekly Overview Analysis could not be generated at this time. Please try again later.'
-      }];
+      // Filter out any entries that didn't parse correctly (e.g., missing day)
+      const validSummaries = summaries.filter(s => s.day && s.summary);
+
+      if (validSummaries.length === 0 && summaries.length > 0) {
+        // Parsing happened, but no valid items were produced. This indicates a format mismatch.
+        console.warn("Failed to parse any valid summaries from AI weekly overview response:", aiText);
+        return [{ title: 'Parsing Error', description: 'Could not parse the AI response for weekly overview.' }];
+      }
+
+      return validSummaries;
+
+    } catch (e) { // Catch any unexpected error during processing, though parseGeminiSummaries is quite safe.
+        console.error('Error processing AI response for weekly overview:', e);
+        return [{
+            title: 'Processing Error',
+            description: 'An error occurred while processing the AI response for weekly overview.'
+        }];
     }
 
   } catch (error) {
@@ -277,14 +293,30 @@ function parseGeminiSummaries(text: string) {
   // Example Gemini output:
   // Monday: Completed 3/3 priorities. Focus: Project planning.
   // Tuesday: ...
-  const lines = text.split('\n').filter(Boolean);
-  return lines.map(line => {
-    const [dayPart, ...rest] = line.split(':');
-    const [summary, focusPart] = rest.join(':').split('Focus:');
-    return {
-      day: dayPart.trim(),
-      summary: summary?.trim() || '',
-      focus: focusPart?.trim() || '',
-    };
+  const lines = text.split('\n').filter(line => line.trim() !== ''); // Ensure no empty lines
+  const summaries = lines.map(line => {
+    const parts = line.split('Focus:');
+    const focus = parts.length > 1 ? parts[1].trim() : ''; // Extract focus if present
+
+    const dayAndSummaryPart = parts[0];
+    const dayMatch = dayAndSummaryPart.match(/^(\w+):\s*/); // Match "DayName: "
+
+    let day = '';
+    let summary = '';
+
+    if (dayMatch && dayMatch[1]) {
+      day = dayMatch[1].trim();
+      summary = dayAndSummaryPart.substring(dayMatch[0].length).trim(); // Get text after "DayName: "
+    } else {
+      // Line doesn't match "DayName: Summary..." format, could be a malformed line or just text
+      // For now, we'll skip such lines by not returning a valid 'day'
+      console.warn(`Could not parse day from weekly overview line: "${line}"`);
+      return { day: '', summary: '', focus: '' }; // Invalid entry, will be filtered
+    }
+
+    return { day, summary, focus };
   });
+
+  // Filter out entries where 'day' could not be parsed, as they are essential
+  return summaries.filter(s => s.day !== '');
 }

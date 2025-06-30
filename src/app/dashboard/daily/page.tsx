@@ -257,12 +257,25 @@ export default function DailyPlannerPage() {
 
     // Pass user.uid to getWeeklyOverview
     getWeeklyOverview(dateString, user.uid)
-      .then(setWeeklyOverview)
+      .then(data => {
+        if (data.length > 0 && 'day' in data[0] && data[0].day) {
+          // We have successfully fetched and processed daily summaries
+          setWeeklyOverview(data as DailySummary[]);
+        } else if (data.length > 0) {
+          // We likely have an array of ErrorSummary
+          setWeeklyOverview(data as ErrorSummary[]);
+          console.warn("Received ErrorSummary or unexpected data for weekly overview:", data);
+        } else {
+          // Empty array - could be no data or an issue
+          setWeeklyOverview([{ title: "Info", description: "No weekly data processed or available." }]);
+           console.warn("Received empty data for weekly overview:", data);
+        }
+      })
       .catch(error => {
         console.error('Error fetching weekly overview:', error);
         setWeeklyOverview([{
-          title: 'Error',
-          description: 'Failed to load weekly overview. Please try again later.'
+          title: 'Fetch Error',
+          description: 'Failed to load weekly overview due to a network or system error.'
         }]);
       })
       .finally(() => setLoadingWeeklySummary(false));
