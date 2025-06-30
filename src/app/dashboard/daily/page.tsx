@@ -218,16 +218,45 @@ export default function DailyPlannerPage() {
   };
 
   const getTodayIndex = () => {
-    return new Date().getDay(); // Returns 0-6 (Sunday-Saturday)
+    const today = new Date();
+    // Check if the selected `date` is in the current week.
+    // To do this, compare the week number and year.
+    if (date) {
+      const currentWeek = getWeek(today);
+      const selectedWeek = getWeek(date);
+      if (currentWeek === selectedWeek && today.getFullYear() === date.getFullYear()) {
+        return today.getDay(); // 0 (Sun) - 6 (Sat)
+      }
+    }
+    return -1; // Don't activate any bullet if not current week
   };
 
+  // Helper function to get week number
+  const getWeek = (d: Date) => {
+    const date = new Date(d.getTime());
+    date.setHours(0, 0, 0, 0);
+    // Sunday in current week decides the year.
+    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+    // January 4 is always in week 1.
+    const week1 = new Date(date.getFullYear(), 0, 4);
+    // Adjust to Thursday in week 1 and count number of weeks from date to week1.
+    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+  }
+
+
   useEffect(() => {
-    if (!date) return;
+    if (!date || !user) { // Also check for user
+      if (!user && !loadingWeeklySummary) { // Prevent setting error if user is just loading
+           // setWeeklyOverview([{ title: "Authentication", description: "Please log in to see your weekly overview." }]);
+      }
+      return;
+    }
 
     setLoadingWeeklySummary(true);
     const dateString = date.toISOString().split('T')[0];
 
-    getWeeklyOverview(dateString)
+    // Pass user.uid to getWeeklyOverview
+    getWeeklyOverview(dateString, user.uid)
       .then(setWeeklyOverview)
       .catch(error => {
         console.error('Error fetching weekly overview:', error);
@@ -237,7 +266,7 @@ export default function DailyPlannerPage() {
         }]);
       })
       .finally(() => setLoadingWeeklySummary(false));
-  }, [date]);
+  }, [date, user]); // Add user to dependency array
 
   return (
     <Container size="lg" mt="80">
@@ -386,25 +415,36 @@ export default function DailyPlannerPage() {
 
       <Card shadow="sm" p="lg" radius="md" withBorder>
         <Title order={2} mb="md">Weekly Overview</Title>
-        <Timeline active={getTodayIndex()} bulletSize={24} lineWidth={2}>
-          {weeklyOverview.map((item, idx) => {
-            // Check if the item is a DailySummary (has 'day' property)
-            if ('day' in item) {
-              return (
-                <Timeline.Item key={item.day} title={item.day}>
-                  <Text c="dimmed" size="sm">{item.summary}</Text>
-                  <Text size="xs" mt={4}>Focus: {item.focus}</Text>
-                </Timeline.Item>
-              );
-            }
-            // Handle ErrorSummary case
-            return (
-              <Timeline.Item key={idx} title={item.title} color="red">
-                <Text c="dimmed" size="sm">{item.description}</Text>
-              </Timeline.Item>
-            );
-          })}
-        </Timeline>
+        {loadingWeeklySummary && (
+          <Group justify="center" mt="md">
+            <Loader />
+            <Text>Loading weekly overview...</Text>
+          </Group>
+        )}
+        {!loadingWeeklySummary && weeklyOverview.length === 0 && (
+            <Text color="dimmed" mt="md">No weekly overview data available for the selected week.</Text>
+        )}
+        {!loadingWeeklySummary && weeklyOverview.length > 0 && (
+            <Timeline active={getTodayIndex()} bulletSize={24} lineWidth={2}>
+            {weeklyOverview.map((item, idx) => {
+                if ('day' in item && item.day) { // Ensure item.day is present
+                return (
+                    <Timeline.Item key={`${item.day}-${idx}`} title={item.day}>
+                    <Text c="dimmed" size="sm">{item.summary}</Text>
+                    <Text size="xs" mt={4}>Focus: {item.focus}</Text>
+                    </Timeline.Item>
+                );
+                }
+                // Handle ErrorSummary or other non-day items
+                const errorItem = item as ErrorSummary;
+                return (
+                    <Timeline.Item key={`error-${idx}`} title={errorItem.title || "Info"} color="red">
+                    <Text c="dimmed" size="sm">{errorItem.description || "No details."}</Text>
+                    </Timeline.Item>
+                );
+            })}
+            </Timeline>
+        )}
       </Card>
     </Container>
   );
