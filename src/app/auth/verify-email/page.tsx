@@ -17,7 +17,11 @@ export default function VerifyEmailPage() {
 
         setLoading(true);
         try {
-            await sendEmailVerification(user);
+            const actionCodeSettings = {
+                url: `${window.location.origin}/auth/action?mode=verifyEmail`,
+                handleCodeInApp: true,
+            };
+            await sendEmailVerification(user, actionCodeSettings);
             notifications.show({
                 title: 'Email Sent',
                 message: 'A new verification email has been sent to your inbox.',
@@ -71,6 +75,17 @@ export default function VerifyEmailPage() {
                     )}
                     <Button component={Link} href="/auth/login">
                         Back to Login
+                    </Button>
+                </Group>
+
+                <Group justify="center" gap="md" mt="md">
+                    <Button
+                        component={Link}
+                        href="/auth/debug"
+                        variant="outline"
+                        size="xs"
+                    >
+                        🐛 Debug Email Issues
                     </Button>
                 </Group>
 

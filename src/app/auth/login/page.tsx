@@ -70,8 +70,8 @@ export default function LoginPage() {
         return;
       }
 
-      // Step 4: Update last login in MongoDB
-      await updateUserLastLogin(firebaseUser.uid);
+      // Step 4: Update last login and sync email verification status in MongoDB
+      await updateUserLastLogin(firebaseUser.uid, firebaseUser.emailVerified);
 
       // Step 5: Check profile completeness
       const profileCheck = await checkUserProfileCompleteness(firebaseUser.uid);

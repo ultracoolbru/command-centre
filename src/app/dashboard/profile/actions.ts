@@ -9,11 +9,16 @@ interface UpdateProfileParams {
     displayName?: string;
     bio?: string;
     timezone?: string;
+    emailNotificationsEnabled?: boolean;
+    telegramId?: string;
+    telegramUsername?: string;
+    telegramFirstName?: string;
+    telegramLastName?: string;
 }
 
 export async function updateUserProfile(params: UpdateProfileParams): Promise<{ success: boolean; message?: string }> {
     try {
-        const { uid, firstName, lastName, displayName, bio, timezone } = params;
+        const { uid, firstName, lastName, displayName, bio, timezone, emailNotificationsEnabled, telegramId, telegramUsername, telegramFirstName, telegramLastName } = params;
 
         if (!uid) {
             return { success: false, message: "User ID is required." };
@@ -21,7 +26,7 @@ export async function updateUserProfile(params: UpdateProfileParams): Promise<{ 
 
         const client = await clientPromise;
         const db = client.db();
-        const usersCollection = db.collection("users");
+        const usersCollection = db.collection("User");
 
         // Prepare update data - only include fields that are provided
         const updateData: any = {
@@ -33,6 +38,11 @@ export async function updateUserProfile(params: UpdateProfileParams): Promise<{ 
         if (displayName !== undefined) updateData.displayName = displayName;
         if (bio !== undefined) updateData.bio = bio;
         if (timezone !== undefined) updateData.timezone = timezone;
+        if (emailNotificationsEnabled !== undefined) updateData.emailNotificationsEnabled = emailNotificationsEnabled;
+        if (telegramId !== undefined) updateData.telegramId = telegramId;
+        if (telegramUsername !== undefined) updateData.telegramUsername = telegramUsername;
+        if (telegramFirstName !== undefined) updateData.telegramFirstName = telegramFirstName;
+        if (telegramLastName !== undefined) updateData.telegramLastName = telegramLastName;
 
         const result = await usersCollection.updateOne(
             { _id: uid as any },

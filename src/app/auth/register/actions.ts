@@ -1,7 +1,7 @@
 "use server";
 
 import clientPromise from "@/lib/mongodb";
-import { UserSchema, User } from "@/types/schemas"; // Assuming User is the inferred type
+import { User, UserSchema } from "@/types/schemas"; // Assuming User is the inferred type
 import { ZodError } from "zod";
 
 interface CreateMongoUserProfileParams {
@@ -24,7 +24,7 @@ export async function createMongoUserProfile(
 
     const client = await clientPromise;
     const db = client.db();
-    const usersCollection = db.collection<Omit<User, 'id'>>("users"); // Store as Omit<User, 'id'> if DB uses _id
+    const usersCollection = db.collection<Omit<User, 'id'>>("User"); // Store as Omit<User, 'id'> if DB uses _id
 
     // Check if user already exists in MongoDB (e.g., if action is somehow called twice)
     const existingUser = await usersCollection.findOne({ _id: uid as any }); // Use `_id` for MongoDB
@@ -39,38 +39,38 @@ export async function createMongoUserProfile(
     const now = new Date();
 
     // Prepare the user document according to UserSchema, applying defaults
-    const newUserDocumentData = {
-      _id: uid as any, // Use uid as MongoDB's _id
-      email: email.toLowerCase(),
-      isEmailVerified: false, // Email verification is pending
-      isActive: true,
-      role: 'user', // Default role
-      lastLogin: undefined, // Will be set on actual login
-      twoFactorEnabled: false,
-      twoFactorSecret: undefined,
-      recoveryCodes: [],
-      telegramId: undefined,
-      telegramUsername: undefined,
-      telegramFirstName: undefined,
-      telegramLastName: undefined,
-      emailNotificationsEnabled: true,
-      displayName: displayName || `${firstName || ''} ${lastName || ''}`.trim() || email.split('@')[0],
-      firstName: firstName || undefined,
-      lastName: lastName || undefined,
-      avatarUrl: undefined,
-      bio: undefined,
-      timezone: undefined,
-      createdAt: now,
-      updatedAt: now,
-    };
+    // const newUserDocumentData = {
+    //   _id: uid as any, // Use uid as MongoDB's _id
+    //   email: email.toLowerCase(),
+    //   isEmailVerified: false, // Email verification is pending
+    //   isActive: true,
+    //   role: 'user', // Default role
+    //   lastLogin: undefined, // Will be set on actual login
+    //   twoFactorEnabled: false,
+    //   twoFactorSecret: undefined,
+    //   recoveryCodes: [],
+    //   telegramId: undefined,
+    //   telegramUsername: undefined,
+    //   telegramFirstName: undefined,
+    //   telegramLastName: undefined,
+    //   emailNotificationsEnabled: true,
+    //   displayName: displayName || `${firstName || ''} ${lastName || ''}`.trim() || email.split('@')[0],
+    //   firstName: firstName || undefined,
+    //   lastName: lastName || undefined,
+    //   avatarUrl: undefined,
+    //   bio: undefined,
+    //   timezone: undefined,
+    //   createdAt: now,
+    //   updatedAt: now,
+    // };
 
     // Validate with a partial schema or be careful if UserSchema has non-optional fields not set here
     // For UserSchema, id is not optional, but we are using _id.
     // Let's ensure the structure matches what UserSchema expects for creation (excluding the Zod 'id' field if _id is used)
 
-    const dataToInsert = { ...newUserDocumentData };
+    // const dataToInsert = { ...newUserDocumentData };
     // Manually map _id to id for validation if UserSchema expects 'id'
-    const validationSchema = UserSchema.omit({ id: true }); // Assuming UserSchema has 'id', not '_id'
+    // const validationSchema = UserSchema.omit({ id: true }); // Assuming UserSchema has 'id', not '_id'
 
     // For the purpose of this action, we are constructing the document.
     // The UserSchema has `id: z.string()`. We are using `_id` for Mongo.
@@ -82,28 +82,28 @@ export async function createMongoUserProfile(
     // The current UserSchema has many defaults.
 
     const userToCreate: Omit<User, "id"> & { _id: string } = {
-        _id: uid,
-        email: email.toLowerCase(),
-        isEmailVerified: UserSchema.shape.isEmailVerified.parse(undefined), // Get default
-        isActive: UserSchema.shape.isActive.parse(undefined),
-        role: UserSchema.shape.role.parse(undefined),
-        lastLogin: undefined,
-        twoFactorEnabled: UserSchema.shape.twoFactorEnabled.parse(undefined),
-        twoFactorSecret: undefined,
-        recoveryCodes: UserSchema.shape.recoveryCodes.parse(undefined),
-        telegramId: undefined,
-        telegramUsername: undefined,
-        telegramFirstName: undefined,
-        telegramLastName: undefined,
-        emailNotificationsEnabled: UserSchema.shape.emailNotificationsEnabled.parse(undefined),
-        displayName: displayName || `${firstName || ''} ${lastName || ''}`.trim() || email.split('@')[0],
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
-        avatarUrl: undefined,
-        bio: undefined,
-        timezone: undefined,
-        createdAt: now,
-        updatedAt: now,
+      _id: uid,
+      email: email.toLowerCase(),
+      isEmailVerified: UserSchema.shape.isEmailVerified.parse(undefined), // Get default
+      isActive: UserSchema.shape.isActive.parse(undefined),
+      role: UserSchema.shape.role.parse(undefined),
+      lastLogin: undefined,
+      twoFactorEnabled: UserSchema.shape.twoFactorEnabled.parse(undefined),
+      twoFactorSecret: undefined,
+      recoveryCodes: UserSchema.shape.recoveryCodes.parse(undefined),
+      telegramId: undefined,
+      telegramUsername: undefined,
+      telegramFirstName: undefined,
+      telegramLastName: undefined,
+      emailNotificationsEnabled: UserSchema.shape.emailNotificationsEnabled.parse(undefined),
+      displayName: displayName || `${firstName || ''} ${lastName || ''}`.trim() || email.split('@')[0],
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      avatarUrl: undefined,
+      bio: undefined,
+      timezone: undefined,
+      createdAt: now,
+      updatedAt: now,
     };
 
 
@@ -116,12 +116,12 @@ export async function createMongoUserProfile(
     const parseResult = UserSchema.safeParse(validationCheckData);
 
     if (!parseResult.success) {
-        console.error("MongoDB User Document Validation Error:", parseResult.error.flatten());
-        return {
-            success: false,
-            message: "Failed to create user profile due to validation errors.",
-            errorFields: parseResult.error.flatten().fieldErrors
-        };
+      console.error("MongoDB User Document Validation Error:", parseResult.error.flatten());
+      return {
+        success: false,
+        message: "Failed to create user profile due to validation errors.",
+        errorFields: parseResult.error.flatten().fieldErrors
+      };
     }
 
     // Use the data that Zod parsed and defaulted, if necessary, but ensure _id is used for insertion
@@ -139,11 +139,11 @@ export async function createMongoUserProfile(
   } catch (error) {
     console.error("Error in createMongoUserProfile:", error);
     if (error instanceof ZodError) {
-        return {
-            success: false,
-            message: "Validation error creating user profile.",
-            errorFields: error.flatten().fieldErrors
-        };
+      return {
+        success: false,
+        message: "Validation error creating user profile.",
+        errorFields: error.flatten().fieldErrors
+      };
     }
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
     return { success: false, message: `Failed to create user profile: ${errorMessage}` };

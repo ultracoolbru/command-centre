@@ -1,17 +1,16 @@
 "use server";
 
-import { NextResponse } from 'next/server';
-import { Collection, Document, Filter, ObjectId, WithId } from 'mongodb';
-import clientPromise from '@/lib/mongodb';
-import { generateContent, analyzeSentiment, generateInsights } from '@/lib/gemini';
 import { auth } from '@/lib/firebase';
+import clientPromise from '@/lib/mongodb';
+import { Collection, Document, Filter, ObjectId, WithId } from 'mongodb';
+import { NextResponse } from 'next/server';
 
 // Type definitions for request parameters
 type RequestParams = {
-  params: {
+  params: Promise<{
     collection: string;
     id?: string;  // For routes that include an ID
-  };
+  }>;
 };
 
 type SearchParams = {
@@ -58,7 +57,7 @@ const getCollection = async <T extends BaseDocument>(
 export async function GET(req: Request, { params }: RequestParams): Promise<NextResponse> {
   try {
     const userId = await getUserId(req);
-    const { collection } = params;
+    const { collection } = await params;
     const searchParams = new URL(req.url).searchParams;
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = parseInt(searchParams.get('skip') || '0');
@@ -72,7 +71,7 @@ export async function GET(req: Request, { params }: RequestParams): Promise<Next
 
     return NextResponse.json({ data });
   } catch (error: unknown) {
-    console.error(`Error in GET /${params.collection}:`, error);
+    console.error(`Error in GET /${(await params).collection}:`, error);
     const errorMessage = isError(error) ? error.message : 'An unknown error occurred';
     const statusCode = isError(error) && error.message === 'Not authenticated' ? 401 : 500;
     return NextResponse.json(
@@ -85,7 +84,7 @@ export async function GET(req: Request, { params }: RequestParams): Promise<Next
 export async function POST(req: Request, { params }: RequestParams): Promise<NextResponse> {
   try {
     const userId = await getUserId(req);
-    const { collection } = params;
+    const { collection } = await params;
     const data = await req.json();
 
     // Add metadata
@@ -105,7 +104,7 @@ export async function POST(req: Request, { params }: RequestParams): Promise<Nex
       ...documentWithMetadata
     });
   } catch (error: unknown) {
-    console.error(`Error in POST /${params.collection}:`, error);
+    console.error(`Error in POST /${(await params).collection}:`, error);
     const errorMessage = isError(error) ? error.message : 'Failed to create document';
     return NextResponse.json(
       { error: errorMessage },
@@ -117,8 +116,8 @@ export async function POST(req: Request, { params }: RequestParams): Promise<Nex
 export async function PUT(req: Request, { params }: RequestParams): Promise<NextResponse> {
   try {
     const userId = await getUserId(req);
-    const { collection } = params;
-    const id = params.id;
+    const { collection } = await params;
+    const id = (await params).id;
     const body = await req.json();
 
     if (!id) {
@@ -153,7 +152,7 @@ export async function PUT(req: Request, { params }: RequestParams): Promise<Next
       );
     }
   } catch (error: unknown) {
-    console.error(`Error in PUT /${params.collection}/${params.id}:`, error);
+    console.error(`Error in PUT /${(await params).collection}/${(await params).id}:`, error);
     const errorMessage = isError(error) ? error.message : 'Failed to update document';
     return NextResponse.json(
       { error: errorMessage },
@@ -165,8 +164,8 @@ export async function PUT(req: Request, { params }: RequestParams): Promise<Next
 export async function DELETE(req: Request, { params }: RequestParams): Promise<NextResponse> {
   try {
     const userId = await getUserId(req);
-    const { collection } = params;
-    const id = params.id;
+    const { collection } = await params;
+    const id = (await params).id;
 
     if (!id) {
       return NextResponse.json(
@@ -197,7 +196,7 @@ export async function DELETE(req: Request, { params }: RequestParams): Promise<N
       );
     }
   } catch (error: unknown) {
-    console.error(`Error in DELETE /${params.collection}/${params.id}:`, error);
+    console.error(`Error in DELETE /${(await params).collection}/${(await params).id}:`, error);
     const errorMessage = isError(error) ? error.message : 'Failed to delete document';
     return NextResponse.json(
       { error: errorMessage },

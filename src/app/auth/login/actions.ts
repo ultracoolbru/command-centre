@@ -22,7 +22,7 @@ export async function checkUserProfileCompleteness(uid: string): Promise<Profile
 
         const client = await clientPromise;
         const db = client.db();
-        const usersCollection = db.collection("users");
+        const usersCollection = db.collection("User");
 
         const userDoc = await usersCollection.findOne({ _id: uid as any });
 
@@ -86,9 +86,12 @@ export async function checkUserProfileCompleteness(uid: string): Promise<Profile
 }
 
 /**
- * Updates the lastLogin timestamp for a user
+ * Updates the lastLogin timestamp and email verification status for a user
  */
-export async function updateUserLastLogin(uid: string): Promise<{ success: boolean; message?: string }> {
+export async function updateUserLastLogin(
+    uid: string,
+    isEmailVerified?: boolean
+): Promise<{ success: boolean; message?: string }> {
     try {
         if (!uid) {
             return { success: false, message: "User ID is required." };
@@ -96,16 +99,22 @@ export async function updateUserLastLogin(uid: string): Promise<{ success: boole
 
         const client = await clientPromise;
         const db = client.db();
-        const usersCollection = db.collection("users");
+        const usersCollection = db.collection("User");
+
+        // Prepare update data
+        const updateData: any = {
+            lastLogin: new Date(),
+            updatedAt: new Date()
+        };
+
+        // If email verification status is provided, update it
+        if (isEmailVerified !== undefined) {
+            updateData.isEmailVerified = isEmailVerified;
+        }
 
         await usersCollection.updateOne(
             { _id: uid as any },
-            {
-                $set: {
-                    lastLogin: new Date(),
-                    updatedAt: new Date()
-                }
-            }
+            { $set: updateData }
         );
 
         return { success: true };
@@ -131,7 +140,7 @@ export async function getUserProfile(uid: string): Promise<{ success: boolean; p
 
         const client = await clientPromise;
         const db = client.db();
-        const usersCollection = db.collection("users");
+        const usersCollection = db.collection("User");
 
         const userDoc = await usersCollection.findOne({ _id: uid as any });
 

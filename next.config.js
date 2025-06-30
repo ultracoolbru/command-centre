@@ -4,6 +4,14 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  async rewrites() {
+    return [
+      {
+        source: '/__/auth/action',
+        destination: '/auth/action',
+      },
+    ];
+  },
   // Add any other necessary configurations here
 };
 

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from 'react';
-import { Title, Container, Card, Text, Button, Group, TextInput, Textarea, Grid, Paper, Tabs, Badge, ActionIcon, Switch, Select } from '@mantine/core';
+import { Badge, Button, Card, Container, Grid, Group, Paper, Select, Switch, Tabs, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { IconBell, IconCheck, IconDownload, IconMicrophone, IconSend, IconCalendarEvent } from '@tabler/icons-react';
+import { IconBell, IconCheck, IconDownload, IconMicrophone } from '@tabler/icons-react';
+import { useState } from 'react';
 
 export default function RemindersPage() {
   const [activeTab, setActiveTab] = useState<string | null>('reminders');
@@ -81,8 +81,8 @@ export default function RemindersPage() {
 
       <Tabs value={activeTab} onChange={setActiveTab} mb="xl">
         <Tabs.List>
-          <Tabs.Tab value="reminders" icon={<IconBell size="0.8rem" />}>Reminders</Tabs.Tab>
-          <Tabs.Tab value="exports" icon={<IconDownload size="0.8rem" />}>Exports</Tabs.Tab>
+          <Tabs.Tab value="reminders" leftSection={<IconBell size="0.8rem" />}>Reminders</Tabs.Tab>
+          <Tabs.Tab value="exports" leftSection={<IconDownload size="0.8rem" />}>Exports</Tabs.Tab>
         </Tabs.List>
       </Tabs>
 
@@ -102,12 +102,12 @@ export default function RemindersPage() {
                   />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, md: 6 }}>
-                  <Group position="right" mb="md" style={{ height: '100%', alignItems: 'flex-end' }}>
+                  <Group p="right" mb="md" style={{ height: '100%', alignItems: 'flex-end' }}>
                     <Button
                       variant={isRecording ? "filled" : "outline"}
                       color={isRecording ? "red" : "blue"}
                       onClick={toggleVoiceRecording}
-                      leftIcon={<IconMicrophone size="1.1rem" />}
+                      leftSection={<IconMicrophone size="1.1rem" />}
                     >
                       {isRecording ? "Stop Recording" : "Voice Input"}
                     </Button>
@@ -185,42 +185,42 @@ export default function RemindersPage() {
             <Title order={2} mb="md">Upcoming Reminders</Title>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Group position="apart" mb="xs">
+              <Group p="apart" mb="xs">
                 <div>
-                  <Text weight={500}>Weekly Health Check</Text>
+                  <Text w={500}>Weekly Health Check</Text>
                   <Text size="sm" color="dimmed">Log your weekly health metrics</Text>
                 </div>
                 <Badge>Tomorrow, 10:00 AM</Badge>
               </Group>
-              <Group position="apart">
+              <Group p="apart">
                 <Badge color="blue" variant="outline">Telegram</Badge>
                 <Badge color="gray" variant="outline">Weekly</Badge>
               </Group>
             </Paper>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Group position="apart" mb="xs">
+              <Group p="apart" mb="xs">
                 <div>
-                  <Text weight={500}>Violt Team Meeting</Text>
+                  <Text w={500}>Violt Team Meeting</Text>
                   <Text size="sm" color="dimmed">Discuss progress on SmartThings integration</Text>
                 </div>
                 <Badge>May 24, 2:00 PM</Badge>
               </Group>
-              <Group position="apart">
+              <Group p="apart">
                 <Badge color="green" variant="outline">Email</Badge>
                 <Badge color="gray" variant="outline">One-time</Badge>
               </Group>
             </Paper>
 
             <Paper withBorder p="md" radius="md">
-              <Group position="apart" mb="xs">
+              <Group p="apart" mb="xs">
                 <div>
-                  <Text weight={500}>Daily Journal Reminder</Text>
+                  <Text w={500}>Daily Journal Reminder</Text>
                   <Text size="sm" color="dimmed">Don't forget to write in your journal</Text>
                 </div>
                 <Badge>Today, 8:00 PM</Badge>
               </Group>
-              <Group position="apart">
+              <Group p="apart">
                 <Badge color="purple" variant="outline">Both</Badge>
                 <Badge color="gray" variant="outline">Daily</Badge>
               </Group>
@@ -291,36 +291,36 @@ export default function RemindersPage() {
             <Title order={2} mb="md">Recent Exports</Title>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Group position="apart">
+              <Group p="apart">
                 <div>
-                  <Text weight={500}>Health_Report_May_2025.pdf</Text>
+                  <Text w={500}>Health_Report_May_2025.pdf</Text>
                   <Text size="sm" color="dimmed">Generated on May 20, 2025</Text>
                 </div>
-                <Button variant="light" leftIcon={<IconDownload size="1.1rem" />}>
+                <Button variant="light" leftSection={<IconDownload size="1.1rem" />}>
                   Download
                 </Button>
               </Group>
             </Paper>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Group position="apart">
+              <Group p="apart">
                 <div>
-                  <Text weight={500}>Tasks_Export_Q2_2025.csv</Text>
+                  <Text w={500}>Tasks_Export_Q2_2025.csv</Text>
                   <Text size="sm" color="dimmed">Generated on May 15, 2025</Text>
                 </div>
-                <Button variant="light" leftIcon={<IconDownload size="1.1rem" />}>
+                <Button variant="light" leftSection={<IconDownload size="1.1rem" />}>
                   Download
                 </Button>
               </Group>
             </Paper>
 
             <Paper withBorder p="md" radius="md">
-              <Group position="apart">
+              <Group p="apart">
                 <div>
-                  <Text weight={500}>Journal_Entries_April_2025.markdown</Text>
+                  <Text w={500}>Journal_Entries_April_2025.markdown</Text>
                   <Text size="sm" color="dimmed">Generated on May 1, 2025</Text>
                 </div>
-                <Button variant="light" leftIcon={<IconDownload size="1.1rem" />}>
+                <Button variant="light" leftSection={<IconDownload size="1.1rem" />}>
                   Download
                 </Button>
               </Group>
@@ -331,28 +331,28 @@ export default function RemindersPage() {
             <Title order={2} mb="md">Scheduled Reports</Title>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Group position="apart" mb="xs">
+              <Group p="apart" mb="xs">
                 <div>
-                  <Text weight={500}>Weekly Health Summary</Text>
+                  <Text w={500}>Weekly Health Summary</Text>
                   <Text size="sm" color="dimmed">PDF report of health metrics</Text>
                 </div>
                 <Switch defaultChecked />
               </Group>
-              <Group position="apart">
+              <Group p="apart">
                 <Badge color="blue">Every Sunday</Badge>
                 <Badge color="green">Email Delivery</Badge>
               </Group>
             </Paper>
 
             <Paper withBorder p="md" radius="md">
-              <Group position="apart" mb="xs">
+              <Group p="apart" mb="xs">
                 <div>
-                  <Text weight={500}>Monthly Progress Report</Text>
+                  <Text w={500}>Monthly Progress Report</Text>
                   <Text size="sm" color="dimmed">Comprehensive dashboard summary</Text>
                 </div>
                 <Switch defaultChecked />
               </Group>
-              <Group position="apart">
+              <Group p="apart">
                 <Badge color="blue">1st of each month</Badge>
                 <Badge color="green">Email Delivery</Badge>
               </Group>

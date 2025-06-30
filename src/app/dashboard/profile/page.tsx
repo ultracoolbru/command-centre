@@ -2,7 +2,7 @@
 
 import { getUserProfile } from '@/app/auth/login/actions';
 import { useAuth } from '@/lib/auth-context';
-import { Alert, Button, Container, Group, Paper, Select, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { Alert, Button, Container, Divider, Group, Paper, Select, Switch, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { IconInfoCircle } from '@tabler/icons-react';
@@ -38,6 +38,11 @@ export default function ProfilePage() {
             displayName: '',
             bio: '',
             timezone: '',
+            emailNotificationsEnabled: true,
+            telegramId: '',
+            telegramUsername: '',
+            telegramFirstName: '',
+            telegramLastName: '',
         },
         validate: {
             firstName: (value) => (value.length < 1 ? 'First name is required' : null),
@@ -61,6 +66,11 @@ export default function ProfilePage() {
                         displayName: profile.displayName || '',
                         bio: profile.bio || '',
                         timezone: profile.timezone || '',
+                        emailNotificationsEnabled: profile.emailNotificationsEnabled ?? true,
+                        telegramId: profile.telegramId || '',
+                        telegramUsername: profile.telegramUsername || '',
+                        telegramFirstName: profile.telegramFirstName || '',
+                        telegramLastName: profile.telegramLastName || '',
                     });
                 }
             } catch (error) {
@@ -92,6 +102,11 @@ export default function ProfilePage() {
                 displayName: values.displayName || values.firstName,
                 bio: values.bio,
                 timezone: values.timezone,
+                emailNotificationsEnabled: values.emailNotificationsEnabled,
+                telegramId: values.telegramId || undefined,
+                telegramUsername: values.telegramUsername || undefined,
+                telegramFirstName: values.telegramFirstName || undefined,
+                telegramLastName: values.telegramLastName || undefined,
             });
 
             if (result.success) {
@@ -194,9 +209,48 @@ export default function ProfilePage() {
                         required
                         data={timezones}
                         searchable
-                        mb="xl"
+                        mb="md"
                         {...form.getInputProps('timezone')}
                     />
+
+                    <Divider my="lg" label="Notification Preferences" labelPosition="center" />
+
+                    <Switch
+                        label="Email Notifications"
+                        description="Receive important updates and reminders via email"
+                        mb="lg"
+                        {...form.getInputProps('emailNotificationsEnabled', { type: 'checkbox' })}
+                    />
+
+                    <Divider my="lg" label="Telegram Integration (Optional)" labelPosition="center" />
+
+                    <Group grow mb="md">
+                        <TextInput
+                            label="Telegram ID"
+                            placeholder="Your Telegram user ID"
+                            description="Numeric ID for Telegram bot integration"
+                            {...form.getInputProps('telegramId')}
+                        />
+                        <TextInput
+                            label="Telegram Username"
+                            placeholder="@username"
+                            description="Your Telegram username (without @)"
+                            {...form.getInputProps('telegramUsername')}
+                        />
+                    </Group>
+
+                    <Group grow mb="xl">
+                        <TextInput
+                            label="Telegram First Name"
+                            placeholder="First name on Telegram"
+                            {...form.getInputProps('telegramFirstName')}
+                        />
+                        <TextInput
+                            label="Telegram Last Name"
+                            placeholder="Last name on Telegram"
+                            {...form.getInputProps('telegramLastName')}
+                        />
+                    </Group>
 
                     <Group justify="space-between">
                         <Button

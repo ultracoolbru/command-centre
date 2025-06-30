@@ -50,7 +50,11 @@ export default function RegisterPage() {
       if (firebaseUser) {
         // Step 2: Send email verification
         try {
-          await sendEmailVerification(firebaseUser);
+          const actionCodeSettings = {
+            url: `${window.location.origin}/auth/action?mode=verifyEmail`,
+            handleCodeInApp: true,
+          };
+          await sendEmailVerification(firebaseUser, actionCodeSettings);
           notifications.show({
             title: 'Verification Email Sent',
             message: 'A verification link has been sent to your email address.',

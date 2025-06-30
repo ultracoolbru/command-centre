@@ -1,12 +1,12 @@
 "use client";
 
-import { AppShell, Text, Burger, useMantineTheme, NavLink, Group, Avatar, Menu, UnstyledButton, rem, Box, ScrollArea } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
-import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { IconCalendarTime, IconChecklist, IconHeartRateMonitor, IconNotebook, IconCode, IconBulb, IconTerminal, IconLogout, IconUser } from '@tabler/icons-react';
+import { AppShell, Avatar, Box, Burger, Group, Menu, NavLink, ScrollArea, Text, UnstyledButton, rem, useMantineTheme } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
+import { IconBulb, IconCalendarTime, IconChecklist, IconCode, IconHeartRateMonitor, IconLogout, IconNotebook, IconTerminal, IconUser } from '@tabler/icons-react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -33,6 +33,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { label: 'Violt Development', icon: <IconCode size="1.2rem" stroke={1.5} />, path: '/dashboard/violt' },
     { label: 'AI Insights', icon: <IconBulb size="1.2rem" stroke={1.5} />, path: '/dashboard/ai' },
     { label: 'Echo CLI', icon: <IconTerminal size="1.2rem" stroke={1.5} />, path: '/dashboard/echo' },
+    { label: 'Settings', icon: <IconUser size="1.2rem" stroke={1.5} />, path: '/dashboard/settings' },
+    { label: 'Profile', icon: <IconUser size="1.2rem" stroke={1.5} />, path: '/dashboard/profile' },
+    { label: 'Logout', icon: <IconLogout size="1.2rem" stroke={1.5} />, path: '/auth/login', onClick: handleLogout }
   ];
 
   return (
@@ -95,8 +98,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </UnstyledButton>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item leftSection={<IconUser style={{ width: rem(14), height: rem(14) }} />}>
-                  Profile
+                <Menu.Item leftSection={<IconUser color={user?.emailVerified ? 'green' : 'red'} style={{ width: rem(14), height: rem(14) }} />}>
+                  <Link href="/dashboard/profile">
+                    Profile
+                  </Link>
                 </Menu.Item>
                 <Menu.Item
                   leftSection={<IconLogout style={{ width: rem(14), height: rem(14) }} />}
