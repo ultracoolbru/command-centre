@@ -2,9 +2,34 @@ import { z } from 'zod';
 
 // Base schemas
 export const UserSchema = z.object({
-  id: z.string(),
+  id: z.string(), // Corresponds to Firebase UID
   email: z.string().email(),
-  displayName: z.string().optional(),
+  passwordHash: z.string().optional(), // Not stored if using Firebase Auth directly for password handling
+  isEmailVerified: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+  role: z.enum(['user', 'admin']).default('user'),
+  lastLogin: z.date().optional(),
+  twoFactorEnabled: z.boolean().default(false),
+  twoFactorSecret: z.string().optional(), // Encrypted 2FA secret
+  recoveryCodes: z.array(z.string()).default([]), // Hashed recovery codes
+
+  // Telegram Integration Fields
+  telegramId: z.string().optional(),
+  telegramUsername: z.string().optional(),
+  telegramFirstName: z.string().optional(),
+  telegramLastName: z.string().optional(),
+
+  // Notification Preferences
+  emailNotificationsEnabled: z.boolean().default(true),
+
+  // Profile Information
+  displayName: z.string().optional(), // User-chosen display name
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  avatarUrl: z.string().url().optional(), // URL to profile picture (e.g., from Firebase Storage)
+  bio: z.string().max(500).optional(), // Short user biography
+  timezone: z.string().optional(), // E.g., "America/New_York"
+
   createdAt: z.date(),
   updatedAt: z.date(),
 });
