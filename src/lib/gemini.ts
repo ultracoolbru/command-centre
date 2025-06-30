@@ -152,15 +152,38 @@ export async function generateInsights(data: any, category: string) {
 
     const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-pro', safetySettings: safetySettings });
 
-    const prompt = `
+    let specificPrompt = "";
+    if (category === "daily personal planning and reflection") {
+      specificPrompt = `
+Analyze the following daily planning and reflection data:
+- Priorities: ${JSON.stringify(data.priorities)}
+- Morning Notes: ${data.morningNotes || "Not provided."}
+- Accomplishments: ${data.accomplishments || "Not provided."}
+- Challenges: ${data.challenges || "Not provided."}
+- Focus for Tomorrow: ${data.tomorrowFocus || "Not provided."}
+- General Reflection Notes: ${data.reflectionNotes || "Not provided."}
+
+Based on this data, provide 2-4 concise and actionable insights. Focus on:
+- Potential patterns in accomplishments or challenges.
+- Connections between priorities and outcomes.
+- Suggestions for improving productivity or well-being for the next day.
+- Observations about focus or recurring themes.
+
+Format the response as a JSON array of insight objects, each with a "title" (a brief heading for the insight) and "description" (the detailed insight).
+Example: [{"title": "Productivity Peak", "description": "You seem to accomplish most of your priorities in the morning."}]
+`;
+    } else {
+      // Fallback to the original generic prompt if category is different
+      specificPrompt = `
       Analyze the following ${category} data and provide 3-5 meaningful insights.
       Focus on patterns, correlations, and actionable recommendations.
       Format the response as a JSON array of insight objects, each with "title" and "description" fields.
       
       Data: ${JSON.stringify(data)}
     `;
+    }
 
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(specificPrompt);
     const response = result.response.text();
 
     try {
