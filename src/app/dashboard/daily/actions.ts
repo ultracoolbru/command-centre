@@ -49,7 +49,7 @@ export async function getWeeklyOverview(dateString: string): Promise<DailySummar
 }
 
 export async function saveMorningPlan(
-    userId: string, // Added userId parameter
+    userId: string,
     dateString: string,
     values: {
         priority1?: string;
@@ -72,9 +72,17 @@ export async function saveMorningPlan(
         }
 
         // Validate input values against the schema
-        const validationResult = DailyPlanSchema.safeParse(values);
+        const validationResult = DailyPlanSchema.pick({
+            priority1: true,
+            priority2: true,
+            priority3: true,
+            morningNotes: true,
+        }).safeParse(values);
+
         if (!validationResult.success) {
-            return { success: false, message: `Validation failed: ${validationResult.error.flatten().fieldErrors}` };
+            // Construct a user-friendly error message from Zod's error details
+            const errorMessages = Object.values(validationResult.error.flatten().fieldErrors).flat().join('; ');
+            return { success: false, message: `Validation failed: ${errorMessages}` };
         }
 
         const validatedValues = validationResult.data;
@@ -83,53 +91,55 @@ export async function saveMorningPlan(
         const db = client.db();
         const collection = db.collection<Omit<DailyPlan, 'id'>>("dailyPlans");
 
-        const documentToSave = {
+        // Define the document to be set, focusing on morning plan fields
+        const completeDocument = {
             userId,
-            date: parsedDate, // Store as BSON Date
-            priority1: validatedValues.priority1 || "", // Ensure empty strings if optional and not provided
+            date: parsedDate,
+            priority1: validatedValues.priority1 || "",
             priority2: validatedValues.priority2 || "",
             priority3: validatedValues.priority3 || "",
             morningNotes: validatedValues.morningNotes || "",
-            // Initialize evening fields as empty or undefined as per your schema logic for a new morning plan
-            accomplishments: "",
-            challenges: "",
-            tomorrowFocus: "",
-            reflectionNotes: "",
+            // Evening fields are explicitly not set here for $set,
+            // they will be initialized by $setOnInsert if it's a new document
             updatedAt: new Date(),
         };
 
         const result = await collection.updateOne(
-            { userId: userId, date: parsedDate }, // Filter to find existing plan for this user and date
+            { userId: userId, date: parsedDate },
             {
-                $set: documentToSave,
-                $setOnInsert: { createdAt: new Date() }
+                $set: completeDocument,
+                $setOnInsert: {
+                    createdAt: new Date(),
+                    // Initialize evening fields only on insert if they are not part of this form
+                    accomplishments: "",
+                    challenges: "",
+                    tomorrowFocus: "",
+                    reflectionNotes: ""
+                }
             },
             { upsert: true }
         );
 
         if (result.acknowledged) {
             let savedDataId: string;
-            if (result.upsertedId) {
-                savedDataId = result.upsertedId.toString();
-            } else {
-                // If updated, fetch the document to get its _id if needed, or assume success
-                const existingDoc = await collection.findOne({ userId: userId, date: parsedDate });
-                if (!existingDoc?._id) {
-                    return { success: false, message: "Failed to retrieve saved plan ID after update." };
-                }
-                savedDataId = existingDoc._id.toString();
+            // After upsert, find the document to get its ID, whether inserted or updated
+            const savedDoc = await collection.findOne({ userId: userId, date: parsedDate });
+            if (!savedDoc || !savedDoc._id) {
+                return { success: false, message: "Failed to retrieve saved plan ID." };
             }
+            savedDataId = savedDoc._id.toString();
+
             return {
                 success: true,
                 message: "Morning plan saved successfully.",
-                data: {
+                data: { // Return only the fields that were part of this operation
                     id: savedDataId,
                     userId,
                     date: parsedDate,
-                    ...(() => {
-                        const { id, userId, date, ...rest } = validatedValues;
-                        return rest;
-                    })()
+                    priority1: validatedValues.priority1,
+                    priority2: validatedValues.priority2,
+                    priority3: validatedValues.priority3,
+                    morningNotes: validatedValues.morningNotes,
                 }
             };
         } else {
@@ -139,5 +149,164 @@ export async function saveMorningPlan(
         console.error("Error saving morning plan:", error);
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         return { success: false, message: `Error saving morning plan: ${errorMessage}` };
+    }
+}
+
+export async function saveEveningPlan(
+    userId: string,
+    dateString: string,
+    values: {
+        accomplishments?: string;
+        challenges?: string;
+        tomorrowFocus?: string;
+        reflectionNotes?: string;
+    }
+): Promise<{ success: boolean; message: string; data?: Partial<DailyPlan> }> {
+    try {
+        if (!userId) {
+            return { success: false, message: "User ID is required." };
+        }
+        if (!dateString) {
+            return { success: false, message: "Date is required." };
+        }
+
+        const parsedDate = new Date(dateString);
+        if (isNaN(parsedDate.getTime())) {
+            return { success: false, message: "Invalid date format." };
+        }
+
+        const validationResult = DailyPlanSchema.pick({
+            accomplishments: true,
+            challenges: true,
+            tomorrowFocus: true,
+            reflectionNotes: true,
+        }).safeParse(values);
+
+        if (!validationResult.success) {
+            const errorMessages = Object.values(validationResult.error.flatten().fieldErrors).flat().join('; ');
+            return { success: false, message: `Validation failed: ${errorMessages}` };
+        }
+
+        const validatedValues = validationResult.data;
+
+        const client = await clientPromise;
+        const db = client.db();
+        const collection = db.collection<Omit<DailyPlan, 'id'>>("dailyPlans");
+
+        const documentToUpdate = {
+            userId, // technically not needed in $set if part of filter, but good for clarity
+            date: parsedDate, // same as above
+            accomplishments: validatedValues.accomplishments || "",
+            challenges: validatedValues.challenges || "",
+            tomorrowFocus: validatedValues.tomorrowFocus || "",
+            reflectionNotes: validatedValues.reflectionNotes || "",
+            updatedAt: new Date(),
+        };
+
+        const result = await collection.updateOne(
+            { userId: userId, date: parsedDate },
+            {
+                $set: documentToUpdate,
+                $setOnInsert: {
+                    createdAt: new Date(),
+                    // Initialize morning fields only on insert if they are not part of this form and document is new
+                    priority1: "",
+                    priority2: "",
+                    priority3: "",
+                    morningNotes: ""
+                }
+            },
+            { upsert: true }
+        );
+
+        if (result.acknowledged) {
+            const savedDoc = await collection.findOne({ userId: userId, date: parsedDate });
+            if (!savedDoc || !savedDoc._id) {
+                return { success: false, message: "Failed to retrieve saved plan ID." };
+            }
+            const savedDataId = savedDoc._id.toString();
+
+            return {
+                success: true,
+                message: "Evening reflection saved successfully.",
+                data: { // Return only the fields that were part of this operation
+                    id: savedDataId,
+                    userId,
+                    date: parsedDate,
+                    accomplishments: validatedValues.accomplishments,
+                    challenges: validatedValues.challenges,
+                    tomorrowFocus: validatedValues.tomorrowFocus,
+                    reflectionNotes: validatedValues.reflectionNotes,
+                }
+            };
+        } else {
+            return { success: false, message: "Failed to save evening reflection." };
+        }
+    } catch (error) {
+        console.error("Error saving evening reflection:", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        return { success: false, message: `Error saving evening reflection: ${errorMessage}` };
+    }
+}
+
+export async function fetchDailyAIInsights(
+    userId: string,
+    dateString: string
+): Promise<{ success: boolean; message?: string; insights?: Array<{ title: string; description: string }> }> {
+    try {
+        if (!userId) {
+            return { success: false, message: "User ID is required to fetch AI insights." };
+        }
+        if (!dateString) {
+            return { success: false, message: "Date is required to fetch AI insights." };
+        }
+
+        const parsedDate = new Date(dateString);
+        if (isNaN(parsedDate.getTime())) {
+            return { success: false, message: "Invalid date format for AI insights." };
+        }
+
+        const client = await clientPromise;
+        const db = client.db();
+        const collection = db.collection<DailyPlan>("dailyPlans"); // Use DailyPlan type
+
+        const dailyPlanData = await collection.findOne({ userId: userId, date: parsedDate });
+
+        if (!dailyPlanData) {
+            return { success: false, message: "No daily plan data found for this date to generate insights." };
+        }
+
+        // Prepare data for Gemini. Only send relevant fields.
+        const dataForInsights = {
+            priorities: [dailyPlanData.priority1, dailyPlanData.priority2, dailyPlanData.priority3].filter(Boolean),
+            morningNotes: dailyPlanData.morningNotes,
+            accomplishments: dailyPlanData.accomplishments,
+            challenges: dailyPlanData.challenges,
+            tomorrowFocus: dailyPlanData.tomorrowFocus,
+            reflectionNotes: dailyPlanData.reflectionNotes,
+        };
+
+        // Dynamically import generateInsights from gemini.ts
+        const { generateInsights } = await import("@/lib/gemini");
+        const insights = await generateInsights(dataForInsights, "daily personal planning and reflection");
+
+        // Ensure insights is an array, even if Gemini returns a single object or error structure
+        if (Array.isArray(insights)) {
+            return { success: true, insights };
+        } else if (insights && typeof insights === 'object' && insights.title && insights.description) {
+            // Handle cases where Gemini might return a single insight object not in an array
+            return { success: true, insights: [insights as { title: string; description: string }] };
+        } else {
+             // Handle cases where insights might be an error object from generateInsights's catch block
+            if (insights && (insights as any).title === 'Error' || (insights as any).title === 'Data Analysis') {
+                 return { success: false, message: (insights as any).description || "Could not generate insights at this time."};
+            }
+            return { success: false, message: "Received an unexpected format for AI insights." };
+        }
+
+    } catch (error) {
+        console.error("Error fetching AI insights:", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred while fetching AI insights.";
+        return { success: false, message: errorMessage };
     }
 }
