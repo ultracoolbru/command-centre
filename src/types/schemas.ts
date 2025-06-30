@@ -29,7 +29,6 @@ export const UserSchema = z.object({
   avatarUrl: z.string().url().optional(), // URL to profile picture (e.g., from Firebase Storage)
   bio: z.string().max(500).optional(), // Short user biography
   timezone: z.string().optional(), // E.g., "America/New_York"
-
   createdAt: z.date(),
   updatedAt: z.date(),
 });
