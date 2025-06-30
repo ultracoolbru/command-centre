@@ -6,7 +6,8 @@ import { DatePickerInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconMicrophone } from '@tabler/icons-react';
-import { DailySummary, ErrorSummary, getWeeklyOverview } from './actions';
+import { getWeeklyOverview } from './actions';
+import { DailySummary, ErrorSummary } from "@/types/schemas";
 
 export default function DailyPlannerPage() {
   const [date, setDate] = useState<Date | null>(new Date());

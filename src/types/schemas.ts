@@ -25,6 +25,22 @@ export const DailyPlanSchema = z.object({
   updatedAt: z.date(),
 });
 
+const DailySummarySchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  date: z.date(),
+  day: z.string(),
+  summary: z.string(),
+  focus: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+const ErrorSummarySchema = z.object({
+  title: z.string(),
+  description: z.string(),
+});
+
 export const TaskSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -165,6 +181,8 @@ export const AIInsightSchema = z.object({
 // Types derived from schemas
 export type User = z.infer<typeof UserSchema>;
 export type DailyPlan = z.infer<typeof DailyPlanSchema>;
+export type DailySummary = z.infer<typeof DailySummarySchema>;
+export type ErrorSummary = z.infer<typeof ErrorSummarySchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type Goal = z.infer<typeof GoalSchema>;
 export type HealthLog = z.infer<typeof HealthLogSchema>;
