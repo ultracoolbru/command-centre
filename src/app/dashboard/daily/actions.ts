@@ -1,49 +1,117 @@
 "use server";
 
 import { DailyPlan, DailyPlanSchema, DailySummary, ErrorSummary } from "@/types/schemas";
-import { generateWeeklyOverview } from "@/lib/gemini";
+import { generateWeeklyOverview, generateInsights } from "@/lib/gemini"; // Added generateInsights
 import clientPromise from "@/lib/mongodb";
+import { getAuth } from "@clerk/nextjs/server"; // Assuming Clerk for auth, adjust if different
+import { NextApiRequest } from "next"; // For auth if using API routes, not directly here but for context
 
-export async function getWeeklyOverview(dateString: string): Promise<DailySummary[] | ErrorSummary[]> {
+
+// Helper to get user ID - adjust based on your actual auth setup
+// This is a placeholder. In a real app, you'd get this from your auth provider context on client or server.
+// For server actions, you might need to pass it or use a server-side auth utility.
+async function getCurrentUserId(): Promise<string | null> {
+    // Example for Clerk (if in API route or server component with access to req)
+    // const { userId } = getAuth(req as NextApiRequest); return userId;
+    // For now, returning a mock. This needs to be replaced with actual auth logic.
+    // If your actions are called from client components that have user context, pass userId as an argument.
+    console.warn("Using mock user ID in server actions. Replace with actual auth logic.");
+    return "mock-user-id"; // Replace this
+}
+
+
+export async function getWeeklyOverview(dateString: string, userIdFromClient?: string): Promise<DailySummary[] | ErrorSummary[]> {
     try {
-        // This will run on the server
-        // For now, we'll return mock data since we don't have actual weekly data
-        // In a real app, you would fetch the weekly data from your database here
-        const mockWeeklyData = {
-            monday: [
-                { title: 'Team Meeting', description: 'Discuss project updates' },
-                { title: 'Code Review', description: 'Review PR #123' }
-            ],
-            tuesday: [
-                { title: 'Feature Development', description: 'Work on new dashboard' },
-                { title: 'Standup', description: 'Daily sync with team' }
-            ],
-            // Add more days as needed
-        };
-
-        const overview = await generateWeeklyOverview({ weeklyData: mockWeeklyData });
-        // If the result is an error array, return as is
-        if (overview.length > 0 && "title" in overview[0]) {
-            return overview as ErrorSummary[];
+        const userId = userIdFromClient || await getCurrentUserId();
+        if (!userId) {
+            return [{ title: "Auth Error", description: "User ID not found." }];
         }
-        // Otherwise, map to the required type
-        const now = new Date();
-        const userId = "mock-user"; // Replace with actual userId if available
-        return (overview as any[]).map((item, idx) => ({
-            id: `mock-id-${idx}`,
-            userId,
-            date: now,
+
+        const targetDate = new Date(dateString);
+        targetDate.setHours(0, 0, 0, 0);
+
+        // Calculate start of the week (assuming week starts on Sunday)
+        const dayOfWeek = targetDate.getDay(); // 0 (Sun) - 6 (Sat)
+        const startDate = new Date(targetDate);
+        startDate.setDate(targetDate.getDate() - dayOfWeek);
+        startDate.setHours(0,0,0,0);
+
+        // Calculate end of the week
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23,59,59,999);
+
+        const client = await clientPromise;
+        const db = client.db();
+        const collection = db.collection<DailyPlan>("dailyPlans");
+
+        const weeklyPlans = await collection.find({
+            userId: userId,
+            date: {
+                $gte: startDate,
+                $lte: endDate,
+            }
+        }).sort({ date: 1 }).toArray();
+
+        if (!weeklyPlans || weeklyPlans.length === 0) {
+            return [{ title: "No Data", description: "No daily plans found for this week." }];
+        }
+
+        // Process data for Gemini
+        const weeklyDataForGemini: { [key: string]: Array<{ title?: string; description?: string; morningNotes?: string; accomplishments?: string; challenges?: string; }> } = {};
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+        weeklyPlans.forEach(plan => {
+            const dayName = dayNames[plan.date.getDay()];
+            if (!weeklyDataForGemini[dayName]) {
+                weeklyDataForGemini[dayName] = [];
+            }
+            // Consolidate relevant info for the prompt.
+            // The prompt in gemini.ts expects 'title' or 'description'. We can adapt.
+            let entryFocus = "";
+            if(plan.priority1) entryFocus += `Priority 1: ${plan.priority1}. `;
+            if(plan.accomplishments) entryFocus += `Accomplished: ${plan.accomplishments}. `;
+            if(plan.challenges) entryFocus += `Challenges: ${plan.challenges}.`;
+
+            weeklyDataForGemini[dayName].push({
+                // title: plan.priority1 || "General Update", // Or combine priorities
+                description: entryFocus || plan.morningNotes || plan.reflectionNotes || "No specific details.",
+                morningNotes: plan.morningNotes,
+                accomplishments: plan.accomplishments,
+                challenges: plan.challenges,
+            });
+        });
+
+        // Dynamically import to avoid issues if not always used or in different environments
+        const { generateWeeklyOverview: geminiGenerateWeeklyOverview } = await import("@/lib/gemini");
+        const overviewFromAI = await geminiGenerateWeeklyOverview({ weeklyData: weeklyDataForGemini });
+
+        if (overviewFromAI.length > 0 && "title" in overviewFromAI[0] && overviewFromAI[0].title === 'Error') {
+             return overviewFromAI as ErrorSummary[]; // AI returned an error structure
+        }
+        if (overviewFromAI.length === 0) {
+            return [{ title: "AI Error", description: "AI could not generate a weekly overview." }];
+        }
+
+
+        // Map AI response to DailySummary[], assuming AI returns {day: string, summary: string, focus: string} objects
+        return overviewFromAI.map((item: any, idx: number) => ({
+            id: item.id || `weekly-summary-${idx}-${new Date().getTime()}`, // Ensure unique ID
+            userId: userId,
+            date: targetDate, // Or perhaps the specific day's date if AI provides it
             day: item.day,
             summary: item.summary,
             focus: item.focus,
-            createdAt: now,
-            updatedAt: now,
+            createdAt: new Date(),
+            updatedAt: new Date(),
         }));
+
     } catch (error) {
         console.error('Error in getWeeklyOverview:', error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         return [{
             title: 'Error',
-            description: 'Failed to generate weekly overview. Please try again later.'
+            description: `Failed to generate weekly overview: ${errorMessage}`
         }];
     }
 }
