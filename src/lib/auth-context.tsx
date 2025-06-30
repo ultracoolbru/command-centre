@@ -1,20 +1,25 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { auth } from '@/lib/firebase';
 import {
   User,
-  onAuthStateChanged,
   createUserWithEmailAndPassword,
+  onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{
+    success: boolean;
+    emailVerified: boolean;
+    profileComplete?: boolean;
+    message?: string
+  }>;
   logOut: () => Promise<void>;
 }
 
@@ -22,7 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   signUp: async () => { },
-  signIn: async () => { },
+  signIn: async () => ({ success: false, emailVerified: false }),
   logOut: async () => { },
 });
 
@@ -50,7 +55,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Return authentication status information for the login page to handle
+      return {
+        success: true,
+        emailVerified: firebaseUser.emailVerified,
+        // Profile completeness check will be handled by the login page
+      };
+    } catch (error) {
+      console.error('Sign in error:', error);
+      return {
+        success: false,
+        emailVerified: false,
+        message: error instanceof Error ? error.message : 'Login failed'
+      };
+    }
   };
 
   const logOut = async () => {

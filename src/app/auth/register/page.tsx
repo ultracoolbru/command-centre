@@ -1,15 +1,15 @@
 "use client";
 
-import { TextInput, PasswordInput, Button, Paper, Title, Text, Container, Group, Anchor, Stack } from '@mantine/core';
+import { auth } from '@/lib/firebase'; // Your firebase auth instance
+import { Anchor, Button, Container, Group, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useForm, zodResolver } from '@mantine/form';
-import { useState } from 'react';
 import { notifications } from '@mantine/notifications';
+import { AuthError, createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, sendEmailVerification, AuthError } from 'firebase/auth';
-import { auth } from '@/lib/firebase'; // Your firebase auth instance
-import { createMongoUserProfile } from './actions'; // Server action
+import { useState } from 'react';
 import { z } from 'zod';
+import { createMongoUserProfile } from './actions'; // Server action
 
 // Schema for client-side validation
 const registrationSchema = z.object({
@@ -83,7 +83,8 @@ export default function RegisterPage() {
             autoClose: 7000,
           });
           form.reset();
-          // router.push('/auth/login'); // Optionally redirect to login page
+          // Navigate to verify email page
+          router.push('/auth/verify-email');
         } else {
           notifications.show({
             title: 'Profile Creation Failed',
