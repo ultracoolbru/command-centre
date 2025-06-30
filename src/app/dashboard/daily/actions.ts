@@ -157,7 +157,7 @@ export async function saveMorningPlan(
 
         const client = await clientPromise;
         const db = client.db();
-        const collection = db.collection<Omit<DailyPlan, 'id'>>("DailyPlan");
+        const collection = db.collection<Omit<DailyPlan, 'id'>>("dailyPlans");
 
         // Define the document to be set, focusing on morning plan fields
         const completeDocument = {
@@ -259,7 +259,7 @@ export async function saveEveningPlan(
 
         const client = await clientPromise;
         const db = client.db();
-        const collection = db.collection<Omit<DailyPlan, 'id'>>("DailyPlan");
+        const collection = db.collection<Omit<DailyPlan, 'id'>>("dailyPlans");
 
         const documentToUpdate = {
             userId, // technically not needed in $set if part of filter, but good for clarity
@@ -336,7 +336,7 @@ export async function fetchDailyAIInsights(
 
         const client = await clientPromise;
         const db = client.db();
-        const collection = db.collection<DailyPlan>("DailyPlan"); // Use DailyPlan type
+        const collection = db.collection<DailyPlan>("dailyPlans"); // Use DailyPlan type
 
         const dailyPlanData = await collection.findOne({ userId: userId, date: parsedDate });
 
@@ -365,9 +365,9 @@ export async function fetchDailyAIInsights(
             // Handle cases where Gemini might return a single insight object not in an array
             return { success: true, insights: [insights as { title: string; description: string }] };
         } else {
-            // Handle cases where insights might be an error object from generateInsights's catch block
+             // Handle cases where insights might be an error object from generateInsights's catch block
             if (insights && (insights as any).title === 'Error' || (insights as any).title === 'Data Analysis') {
-                return { success: false, message: (insights as any).description || "Could not generate insights at this time." };
+                 return { success: false, message: (insights as any).description || "Could not generate insights at this time."};
             }
             return { success: false, message: "Received an unexpected format for AI insights." };
         }

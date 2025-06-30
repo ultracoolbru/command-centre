@@ -1,46 +1,116 @@
 "use client";
 
-import { TextInput, PasswordInput, Button, Paper, Title, Text, Container, Group, Anchor } from '@mantine/core';
-import { useForm } from '@mantine/form';
-import { useAuth } from '@/lib/auth-context';
+import { TextInput, PasswordInput, Button, Paper, Title, Text, Container, Group, Anchor, Stack } from '@mantine/core';
+import { useForm, zodResolver } from '@mantine/form';
 import { useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createUserWithEmailAndPassword, sendEmailVerification, AuthError } from 'firebase/auth';
+import { auth } from '@/lib/firebase'; // Your firebase auth instance
+import { createMongoUserProfile } from './actions'; // Server action
+import { z } from 'zod';
+
+// Schema for client-side validation
+const registrationSchema = z.object({
+  email: z.string().email({ message: 'Invalid email address' }),
+  password: z.string().min(6, { message: 'Password should be at least 6 characters' }),
+  confirmPassword: z.string().min(6, { message: 'Password should be at least 6 characters' }),
+  displayName: z.string().min(1, { message: 'Display name is required' }),
+  firstName: z.string().min(1, { message: 'First name is required' }),
+  lastName: z.string().min(1, { message: 'Last name is required' }),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'], // path to field that will display the error
+});
 
 export default function RegisterPage() {
-  const { signUp } = useAuth();
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const router = useRouter(); // Still can be used for other navigation if needed, or removed
 
   const form = useForm({
     initialValues: {
       email: '',
       password: '',
       confirmPassword: '',
+      displayName: '',
+      firstName: '',
+      lastName: '',
     },
-    validate: {
-      email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Invalid email'),
-      password: (value) => (value.length >= 6 ? null : 'Password should be at least 6 characters'),
-      confirmPassword: (value, values) =>
-        value !== values.password ? 'Passwords do not match' : null,
-    },
+    validate: zodResolver(registrationSchema),
   });
 
   const handleSubmit = async (values: typeof form.values) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      await signUp(values.email, values.password);
-      notifications.show({
-        title: 'Success',
-        message: 'Account created successfully',
-        color: 'green',
-      });
-      router.push('/dashboard/daily');
+      // Step 1: Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const firebaseUser = userCredential.user;
+
+      if (firebaseUser) {
+        // Step 2: Send email verification
+        try {
+          await sendEmailVerification(firebaseUser);
+          notifications.show({
+            title: 'Verification Email Sent',
+            message: 'A verification link has been sent to your email address.',
+            color: 'blue',
+          });
+        } catch (verificationError) {
+          console.error('Error sending verification email:', verificationError);
+          notifications.show({
+            title: 'Verification Email Failed',
+            message: 'Could not send verification email. Please contact support if this issue persists.',
+            color: 'orange',
+          });
+          // Continue to create MongoDB profile even if email sending fails for now
+        }
+
+        // Step 3: Create user profile in MongoDB
+        const profileResult = await createMongoUserProfile({
+          uid: firebaseUser.uid,
+          email: values.email,
+          displayName: values.displayName,
+          firstName: values.firstName,
+          lastName: values.lastName,
+        });
+
+        if (profileResult.success) {
+          notifications.show({
+            title: 'Registration Successful!',
+            message: 'Please check your email to verify your account before logging in.',
+            color: 'green',
+            autoClose: 7000,
+          });
+          form.reset();
+          // router.push('/auth/login'); // Optionally redirect to login page
+        } else {
+          notifications.show({
+            title: 'Profile Creation Failed',
+            message: profileResult.message || 'Could not save your profile information.',
+            color: 'red',
+          });
+          // Potentially delete Firebase user if DB profile creation fails critically
+          // await firebaseUser.delete(); // Requires careful consideration and error handling
+        }
+      }
     } catch (error) {
+      let errorMessage = 'Failed to create account. Please try again.';
+      if (error instanceof Error) {
+        const firebaseError = error as AuthError;
+        if (firebaseError.code === 'auth/email-already-in-use') {
+          errorMessage = 'This email address is already in use.';
+          form.setFieldError('email', errorMessage);
+        } else if (firebaseError.code === 'auth/weak-password') {
+          errorMessage = 'The password is too weak.';
+          form.setFieldError('password', errorMessage);
+        } else {
+          errorMessage = firebaseError.message;
+        }
+      }
       notifications.show({
-        title: 'Error',
-        message: 'Failed to create account. Please try again.',
+        title: 'Registration Error',
+        message: errorMessage,
         color: 'red',
       });
       console.error('Registration error:', error);
@@ -50,38 +120,56 @@ export default function RegisterPage() {
   };
 
   return (
-    <Container size={420} my={40}>
+    <Container size={480} my={40}>
       <Title ta="center" fw={900}>
-        Create an Account
+        Create Your Account
       </Title>
       <Text c="dimmed" size="sm" ta="center" mt={5}>
-        Join Command Dashboard to manage your life
+        Get started with Command Dashboard today!
       </Text>
 
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">
         <form onSubmit={form.onSubmit(handleSubmit)}>
-          <TextInput
-            label="Email"
-            placeholder="you@example.com"
-            required
-            {...form.getInputProps('email')}
-          />
-          <PasswordInput
-            label="Password"
-            placeholder="Your password"
-            required
-            mt="md"
-            {...form.getInputProps('password')}
-          />
-          <PasswordInput
-            label="Confirm Password"
-            placeholder="Confirm your password"
-            required
-            mt="md"
-            {...form.getInputProps('confirmPassword')}
-          />
+          <Stack>
+            <TextInput
+              label="First Name"
+              placeholder="Your first name"
+              required
+              {...form.getInputProps('firstName')}
+            />
+            <TextInput
+              label="Last Name"
+              placeholder="Your last name"
+              required
+              {...form.getInputProps('lastName')}
+            />
+            <TextInput
+              label="Display Name"
+              placeholder="How you want to be seen"
+              required
+              {...form.getInputProps('displayName')}
+            />
+            <TextInput
+              label="Email"
+              placeholder="you@example.com"
+              required
+              {...form.getInputProps('email')}
+            />
+            <PasswordInput
+              label="Password"
+              placeholder="Your password"
+              required
+              {...form.getInputProps('password')}
+            />
+            <PasswordInput
+              label="Confirm Password"
+              placeholder="Confirm your password"
+              required
+              {...form.getInputProps('confirmPassword')}
+            />
+          </Stack>
           <Button fullWidth mt="xl" type="submit" loading={loading}>
-            Register
+            Create Account
           </Button>
         </form>
 
