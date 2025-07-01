@@ -17,7 +17,7 @@
 - [x] Tasks & Goals module
 - [x] Health Tracker module
 - [x] Emotion & Thought Journal module
-- [x] Violt Developer Panel module
+- [x] Projects Developer Panel module
 - [x] Bullet Journal Mode
 - [x] Echo CLI Integration
 - [x] AI (Gemini) Integration

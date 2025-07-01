@@ -1,6 +1,6 @@
 # Command Dashboard
 
-A production-grade, personal life management dashboard hosted at command.edwardwhitehead.dev. This system serves as the central hub for managing life, health, AI insights, personal goals, Violt development, and more.
+A production-grade, personal life management dashboard hosted at command.edwardwhitehead.dev. This system serves as the central hub for managing life, health, AI insights, personal goals, project development, and more.
 
 ## Features
 
@@ -8,7 +8,7 @@ A production-grade, personal life management dashboard hosted at command.edwardw
 - **Tasks & Goals**: Task management with priority levels and goal tracking
 - **Health Tracker**: Monitor health metrics, symptoms, and medications
 - **Journal**: Emotion and thought journaling with AI sentiment analysis
-- **Violt Developer Panel**: Track development progress for Violt projects
+- **Developer Panel**: Track development progress for development projects
 - **Bullet Journal**: Flexible note-taking and task tracking
 - **Echo CLI Integration**: Command-line interface for dashboard interaction
 - **AI Insights**: Gemini-powered analysis and recommendations
@@ -125,7 +125,7 @@ To use voice commands, click the microphone icon in the bottom right corner of a
 │   │   ├── tasks/          # Tasks & goals
 │   │   ├── health/         # Health tracker
 │   │   ├── journal/        # Journal
-│   │   ├── violt/          # Violt developer panel
+│   │   ├── projects/       # Projects developer panel
 │   │   ├── bullet/         # Bullet journal
 │   │   ├── echo/           # Echo CLI
 │   │   ├── ai/             # AI insights

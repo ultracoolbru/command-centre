@@ -6,7 +6,7 @@ declare global {
   }
 }
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 // Custom hook for voice recognition
 export function useVoiceRecognition() {
@@ -27,9 +27,10 @@ export function useVoiceRecognition() {
     if (!SpeechRecognition) return null;
 
     const recognitionInstance = new SpeechRecognition();
-    recognitionInstance.continuous = true;
-    recognitionInstance.interimResults = true;
-    recognitionInstance.lang = 'en-US';
+    recognitionInstance.continuous = false; // Changed to false to prevent continuous interim results
+    recognitionInstance.interimResults = false; // Changed to false to only get final results
+    recognitionInstance.lang = 'en-US'; // Set language to English (United States) - TODO: Set this dynamically based on user preference (in the settings tab)
+    recognitionInstance.maxAlternatives = 1;
 
     return recognitionInstance;
   }, []);
@@ -52,9 +53,14 @@ export function useVoiceRecognition() {
     recognitionInstance.onresult = (event: { resultIndex: any; results: { [x: string]: any; }; }) => {
       const current = event.resultIndex;
       const result = event.results[current];
-      const transcriptValue = result[0].transcript;
 
-      setTranscript(transcriptValue);
+      // Only process final results to avoid interim duplicates
+      if (result.isFinal) {
+        const transcriptValue = result[0].transcript.trim();
+        if (transcriptValue) {
+          setTranscript(transcriptValue);
+        }
+      }
     };
 
     recognitionInstance.onerror = (event: { error: any; }) => {
@@ -63,10 +69,8 @@ export function useVoiceRecognition() {
     };
 
     recognitionInstance.onend = () => {
-      if (isListening) {
-        // Restart if we're still supposed to be listening
-        recognitionInstance.start();
-      }
+      setIsListening(false);
+      // Don't auto-restart here - let the component handle it
     };
 
     // Start recognition
@@ -125,11 +129,17 @@ export function useVoiceCommands(commands: Record<string, (args?: string) => voi
 
   // Process commands when transcript changes
   useEffect(() => {
-    if (!transcript || transcript === lastProcessedTranscript) return;
+    if (!transcript || transcript === lastProcessedTranscript || transcript.length < 2) return;
 
     const lowerTranscript = transcript.toLowerCase().trim();
 
+    // Skip if it's just a repetition or partial word
+    if (lastProcessedTranscript && lowerTranscript.startsWith(lastProcessedTranscript.toLowerCase())) {
+      return;
+    }
+
     // Check for command matches
+    let commandFound = false;
     for (const [commandPattern, handler] of Object.entries(commands)) {
       // Convert command pattern to regex
       const pattern = new RegExp(`^${commandPattern.toLowerCase().replace(/\{([^}]+)\}/g, '(.+)')}$`);
@@ -137,20 +147,35 @@ export function useVoiceCommands(commands: Record<string, (args?: string) => voi
 
       if (match) {
         // Extract arguments if any
-        const args = match.length > 1 ? match[1] : undefined;
+        const args = match.length > 1 ? match[1].trim() : undefined;
 
         // Execute the command handler
         handler(args);
 
         // Mark as processed
         setLastProcessedTranscript(transcript);
+        commandFound = true;
 
-        // Stop listening after command is processed
-        stopListening();
+        // Clear transcript for next command
+        setTimeout(() => {
+          setLastProcessedTranscript('');
+        }, 1000);
+
         break;
       }
     }
-  }, [transcript, lastProcessedTranscript, commands, stopListening]);
+
+    // If no specific command found, check for the general text handler
+    if (!commandFound && commands['{text}']) {
+      commands['{text}'](transcript);
+      setLastProcessedTranscript(transcript);
+
+      // Clear transcript for next command
+      setTimeout(() => {
+        setLastProcessedTranscript('');
+      }, 1000);
+    }
+  }, [transcript, lastProcessedTranscript, commands]);
 
   return {
     isListening,

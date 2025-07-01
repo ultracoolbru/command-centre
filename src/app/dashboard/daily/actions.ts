@@ -1,31 +1,23 @@
 "use server";
 
-import { DailyPlan, DailyPlanSchema, DailySummary, ErrorSummary } from "@/types/schemas";
-import { generateWeeklyOverview, generateInsights } from "@/lib/gemini"; // Added generateInsights
 import clientPromise from "@/lib/mongodb";
-import { getAuth } from "@clerk/nextjs/server"; // Assuming Clerk for auth, adjust if different
-import { NextApiRequest } from "next"; // For auth if using API routes, not directly here but for context
+import { getValidatedUserId } from "@/lib/server-auth";
+import { DailyPlan, DailyPlanSchema, DailySummary, ErrorSummary } from "@/types/schemas";
 
 
-// Helper to get user ID - adjust based on your actual auth setup
-// This is a placeholder. In a real app, you'd get this from your auth provider context on client or server.
-// For server actions, you might need to pass it or use a server-side auth utility.
-async function getCurrentUserId(): Promise<string | null> {
-    // Example for Clerk (if in API route or server component with access to req)
-    // const { userId } = getAuth(req as NextApiRequest); return userId;
-    // For now, returning a mock. This needs to be replaced with actual auth logic.
-    // If your actions are called from client components that have user context, pass userId as an argument.
-    console.warn("Using mock user ID in server actions. Replace with actual auth logic.");
-    return "mock-user-id"; // Replace this
-}
-
-
-export async function getWeeklyOverview(dateString: string, userIdFromClient?: string): Promise<DailySummary[] | ErrorSummary[]> {
+/**
+ * Get weekly overview for the user
+ * @param dateString - Date string to get the week for
+ * @param userIdFromClient - User ID from the client context (required)
+ */
+export async function getWeeklyOverview(dateString: string, userIdFromClient: string): Promise<DailySummary[] | ErrorSummary[]> {
     try {
-        const userId = userIdFromClient || await getCurrentUserId();
-        if (!userId) {
-            return [{ title: "Auth Error", description: "User ID not found." }];
+        // Validate user authentication
+        const userValidation = getValidatedUserId(userIdFromClient);
+        if (!userValidation.isValid) {
+            return [{ title: "Auth Error", description: userValidation.error || "Authentication required." }];
         }
+        const userId = userValidation.userId!;
 
         const targetDate = new Date(dateString);
         targetDate.setHours(0, 0, 0, 0);
@@ -34,16 +26,16 @@ export async function getWeeklyOverview(dateString: string, userIdFromClient?: s
         const dayOfWeek = targetDate.getDay(); // 0 (Sun) - 6 (Sat)
         const startDate = new Date(targetDate);
         startDate.setDate(targetDate.getDate() - dayOfWeek);
-        startDate.setHours(0,0,0,0);
+        startDate.setHours(0, 0, 0, 0);
 
         // Calculate end of the week
         const endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + 6);
-        endDate.setHours(23,59,59,999);
+        endDate.setHours(23, 59, 59, 999);
 
         const client = await clientPromise;
         const db = client.db();
-        const collection = db.collection<DailyPlan>("dailyPlans");
+        const collection = db.collection<DailyPlan>("DailyPlan");
 
         const weeklyPlans = await collection.find({
             userId: userId,
@@ -66,28 +58,54 @@ export async function getWeeklyOverview(dateString: string, userIdFromClient?: s
             if (!weeklyDataForGemini[dayName]) {
                 weeklyDataForGemini[dayName] = [];
             }
-            // Consolidate relevant info for the prompt.
-            // The prompt in gemini.ts expects 'title' or 'description'. We can adapt.
-            let entryFocus = "";
-            if(plan.priority1) entryFocus += `Priority 1: ${plan.priority1}. `;
-            if(plan.accomplishments) entryFocus += `Accomplished: ${plan.accomplishments}. `;
-            if(plan.challenges) entryFocus += `Challenges: ${plan.challenges}.`;
 
-            weeklyDataForGemini[dayName].push({
-                // title: plan.priority1 || "General Update", // Or combine priorities
-                description: entryFocus || plan.morningNotes || plan.reflectionNotes || "No specific details.",
-                morningNotes: plan.morningNotes,
-                accomplishments: plan.accomplishments,
-                challenges: plan.challenges,
-            });
+            // Create a more structured entry that preserves the meaning of each field
+            const entry: any = {};
+
+            // Build a meaningful description from priorities
+            let prioritiesDescription = "";
+            if (plan.priority1) prioritiesDescription += `Priority 1: ${plan.priority1}. `;
+            if (plan.priority2) prioritiesDescription += `Priority 2: ${plan.priority2}. `;
+            if (plan.priority3) prioritiesDescription += `Priority 3: ${plan.priority3}. `;
+
+            if (prioritiesDescription) {
+                entry.description = prioritiesDescription;
+            }
+
+            // Include individual fields for better context
+            if (plan.morningNotes) {
+                entry.morningNotes = plan.morningNotes;
+            }
+            if (plan.accomplishments) {
+                entry.accomplishments = plan.accomplishments;
+            }
+            if (plan.challenges) {
+                entry.challenges = plan.challenges;
+            }
+            if (plan.reflectionNotes) {
+                entry.reflectionNotes = plan.reflectionNotes;
+            }
+            if (plan.tomorrowFocus) {
+                entry.tomorrowFocus = plan.tomorrowFocus;
+            }
+
+            // Only add the entry if it has some meaningful content
+            if (Object.keys(entry).length > 0) {
+                weeklyDataForGemini[dayName].push(entry);
+            }
         });
+
+        // Add debugging to see what data we're sending to AI
+        console.log('Weekly data for Gemini:', JSON.stringify(weeklyDataForGemini, null, 2));
 
         // Dynamically import to avoid issues if not always used or in different environments
         const { generateWeeklyOverview: geminiGenerateWeeklyOverview } = await import("@/lib/gemini");
         const overviewFromAI = await geminiGenerateWeeklyOverview({ weeklyData: weeklyDataForGemini });
 
+        console.log('AI overview response:', overviewFromAI);
+
         if (overviewFromAI.length > 0 && "title" in overviewFromAI[0] && overviewFromAI[0].title === 'Error') {
-             return overviewFromAI as ErrorSummary[]; // AI returned an error structure
+            return overviewFromAI as ErrorSummary[]; // AI returned an error structure
         }
         if (overviewFromAI.length === 0) {
             return [{ title: "AI Error", description: "AI could not generate a weekly overview." }];
@@ -116,6 +134,12 @@ export async function getWeeklyOverview(dateString: string, userIdFromClient?: s
     }
 }
 
+/**
+ * Save morning plan for the user
+ * @param userId - User ID from the client context (required)
+ * @param dateString - Date string for the plan
+ * @param values - Morning plan values
+ */
 export async function saveMorningPlan(
     userId: string,
     dateString: string,
@@ -127,14 +151,20 @@ export async function saveMorningPlan(
     }
 ): Promise<{ success: boolean; message: string; data?: Partial<DailyPlan> }> {
     try {
-        if (!userId) {
-            return { success: false, message: "User ID is required." };
+        // Validate user authentication
+        const userValidation = getValidatedUserId(userId);
+        if (!userValidation.isValid) {
+            return { success: false, message: userValidation.error || "Authentication required." };
         }
+        const validatedUserId = userValidation.userId!;
+
         if (!dateString) {
             return { success: false, message: "Date is required." };
         }
 
         const parsedDate = new Date(dateString);
+        parsedDate.setHours(0, 0, 0, 0); // Normalize to start of day
+        console.log('Save Morning Plan - Saving for date:', parsedDate, 'from dateString:', dateString);
         if (isNaN(parsedDate.getTime())) {
             return { success: false, message: "Invalid date format." };
         }
@@ -157,11 +187,11 @@ export async function saveMorningPlan(
 
         const client = await clientPromise;
         const db = client.db();
-        const collection = db.collection<Omit<DailyPlan, 'id'>>("dailyPlans");
+        const collection = db.collection<Omit<DailyPlan, 'id'>>("DailyPlan");
 
         // Define the document to be set, focusing on morning plan fields
         const completeDocument = {
-            userId,
+            userId: validatedUserId,
             date: parsedDate,
             priority1: validatedValues.priority1 || "",
             priority2: validatedValues.priority2 || "",
@@ -173,7 +203,7 @@ export async function saveMorningPlan(
         };
 
         const result = await collection.updateOne(
-            { userId: userId, date: parsedDate },
+            { userId: validatedUserId, date: parsedDate },
             {
                 $set: completeDocument,
                 $setOnInsert: {
@@ -191,7 +221,7 @@ export async function saveMorningPlan(
         if (result.acknowledged) {
             let savedDataId: string;
             // After upsert, find the document to get its ID, whether inserted or updated
-            const savedDoc = await collection.findOne({ userId: userId, date: parsedDate });
+            const savedDoc = await collection.findOne({ userId: validatedUserId, date: parsedDate });
             if (!savedDoc || !savedDoc._id) {
                 return { success: false, message: "Failed to retrieve saved plan ID." };
             }
@@ -202,7 +232,7 @@ export async function saveMorningPlan(
                 message: "Morning plan saved successfully.",
                 data: { // Return only the fields that were part of this operation
                     id: savedDataId,
-                    userId,
+                    userId: validatedUserId,
                     date: parsedDate,
                     priority1: validatedValues.priority1,
                     priority2: validatedValues.priority2,
@@ -220,6 +250,12 @@ export async function saveMorningPlan(
     }
 }
 
+/**
+ * Save evening plan for the user
+ * @param userId - User ID from the client context (required)
+ * @param dateString - Date string for the plan
+ * @param values - Evening plan values
+ */
 export async function saveEveningPlan(
     userId: string,
     dateString: string,
@@ -231,14 +267,20 @@ export async function saveEveningPlan(
     }
 ): Promise<{ success: boolean; message: string; data?: Partial<DailyPlan> }> {
     try {
-        if (!userId) {
-            return { success: false, message: "User ID is required." };
+        // Validate user authentication
+        const userValidation = getValidatedUserId(userId);
+        if (!userValidation.isValid) {
+            return { success: false, message: userValidation.error || "Authentication required." };
         }
+        const validatedUserId = userValidation.userId!;
+
         if (!dateString) {
             return { success: false, message: "Date is required." };
         }
 
         const parsedDate = new Date(dateString);
+        parsedDate.setHours(0, 0, 0, 0); // Normalize to start of day
+        console.log('Save Evening Plan - Saving for date:', parsedDate, 'from dateString:', dateString);
         if (isNaN(parsedDate.getTime())) {
             return { success: false, message: "Invalid date format." };
         }
@@ -259,10 +301,10 @@ export async function saveEveningPlan(
 
         const client = await clientPromise;
         const db = client.db();
-        const collection = db.collection<Omit<DailyPlan, 'id'>>("dailyPlans");
+        const collection = db.collection<Omit<DailyPlan, 'id'>>("DailyPlan");
 
         const documentToUpdate = {
-            userId, // technically not needed in $set if part of filter, but good for clarity
+            userId: validatedUserId, // technically not needed in $set if part of filter, but good for clarity
             date: parsedDate, // same as above
             accomplishments: validatedValues.accomplishments || "",
             challenges: validatedValues.challenges || "",
@@ -272,7 +314,7 @@ export async function saveEveningPlan(
         };
 
         const result = await collection.updateOne(
-            { userId: userId, date: parsedDate },
+            { userId: validatedUserId, date: parsedDate },
             {
                 $set: documentToUpdate,
                 $setOnInsert: {
@@ -288,7 +330,7 @@ export async function saveEveningPlan(
         );
 
         if (result.acknowledged) {
-            const savedDoc = await collection.findOne({ userId: userId, date: parsedDate });
+            const savedDoc = await collection.findOne({ userId: validatedUserId, date: parsedDate });
             if (!savedDoc || !savedDoc._id) {
                 return { success: false, message: "Failed to retrieve saved plan ID." };
             }
@@ -299,7 +341,7 @@ export async function saveEveningPlan(
                 message: "Evening reflection saved successfully.",
                 data: { // Return only the fields that were part of this operation
                     id: savedDataId,
-                    userId,
+                    userId: validatedUserId,
                     date: parsedDate,
                     accomplishments: validatedValues.accomplishments,
                     challenges: validatedValues.challenges,
@@ -317,28 +359,39 @@ export async function saveEveningPlan(
     }
 }
 
+/**
+ * Fetch AI insights for daily plan
+ * @param userId - User ID from the client context (required)
+ * @param dateString - Date string for the insights
+ */
 export async function fetchDailyAIInsights(
     userId: string,
     dateString: string
 ): Promise<{ success: boolean; message?: string; insights?: Array<{ title: string; description: string }> }> {
     try {
-        if (!userId) {
-            return { success: false, message: "User ID is required to fetch AI insights." };
+        // Validate user authentication
+        const userValidation = getValidatedUserId(userId);
+        if (!userValidation.isValid) {
+            return { success: false, message: userValidation.error || "Authentication required." };
         }
+        const validatedUserId = userValidation.userId!;
+
         if (!dateString) {
             return { success: false, message: "Date is required to fetch AI insights." };
         }
 
         const parsedDate = new Date(dateString);
+        parsedDate.setHours(0, 0, 0, 0); // Normalize to start of day
+        console.log('AI Insights - Querying for date:', parsedDate, 'from dateString:', dateString);
         if (isNaN(parsedDate.getTime())) {
             return { success: false, message: "Invalid date format for AI insights." };
         }
 
         const client = await clientPromise;
         const db = client.db();
-        const collection = db.collection<DailyPlan>("dailyPlans"); // Use DailyPlan type
+        const collection = db.collection<DailyPlan>("DailyPlan"); // Use DailyPlan type
 
-        const dailyPlanData = await collection.findOne({ userId: userId, date: parsedDate });
+        const dailyPlanData = await collection.findOne({ userId: validatedUserId, date: parsedDate });
 
         if (!dailyPlanData) {
             return { success: false, message: "No daily plan data found for this date to generate insights." };
@@ -365,9 +418,9 @@ export async function fetchDailyAIInsights(
             // Handle cases where Gemini might return a single insight object not in an array
             return { success: true, insights: [insights as { title: string; description: string }] };
         } else {
-             // Handle cases where insights might be an error object from generateInsights's catch block
+            // Handle cases where insights might be an error object from generateInsights's catch block
             if (insights && (insights as any).title === 'Error' || (insights as any).title === 'Data Analysis') {
-                 return { success: false, message: (insights as any).description || "Could not generate insights at this time."};
+                return { success: false, message: (insights as any).description || "Could not generate insights at this time." };
             }
             return { success: false, message: "Received an unexpected format for AI insights." };
         }

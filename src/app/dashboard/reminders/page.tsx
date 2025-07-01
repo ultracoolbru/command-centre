@@ -129,8 +129,7 @@ export default function RemindersPage() {
                     placeholder="Select date"
                     required
                     mb="md"
-                    value={reminderForm.values.date}
-                    onChange={(value) => reminderForm.setFieldValue('date', value)}
+                    {...reminderForm.getInputProps('date')}
                     minDate={new Date()}
                   />
                 </Grid.Col>
@@ -201,7 +200,7 @@ export default function RemindersPage() {
             <Paper withBorder p="md" radius="md" mb="md">
               <Group p="apart" mb="xs">
                 <div>
-                  <Text w={500}>Violt Team Meeting</Text>
+                  <Text w={500}>Team Meeting</Text>
                   <Text size="sm" color="dimmed">Discuss progress on SmartThings integration</Text>
                 </div>
                 <Badge>May 24, 2:00 PM</Badge>
@@ -244,7 +243,7 @@ export default function RemindersPage() {
                       { value: 'tasks', label: 'Tasks & Goals' },
                       { value: 'journal', label: 'Journal' },
                       { value: 'daily', label: 'Daily Planner' },
-                      { value: 'violt', label: 'Violt Development' },
+                      { value: 'projects', label: 'Development' },
                       { value: 'all', label: 'All Data' },
                     ]}
                     mb="md"

@@ -3,10 +3,11 @@
 import { useAuth } from '@/lib/auth-context';
 import { AppShell, Avatar, Box, Burger, Group, Menu, NavLink, ScrollArea, Text, UnstyledButton, rem, useMantineTheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconBulb, IconCalendarTime, IconChecklist, IconCode, IconHeartRateMonitor, IconLogout, IconNotebook, IconTerminal, IconUser } from '@tabler/icons-react';
+import { IconBell, IconBook, IconBulb, IconCalendarTime, IconChecklist, IconCode, IconHeartRateMonitor, IconLogout, IconNotebook, IconSettings, IconTerminal, IconUser } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getUserProfile } from './profile/actions';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -15,10 +16,29 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const theme = useMantineTheme();
   const [opened, setOpened] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const { user, logOut } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // Fetch user profile data including avatar URL
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (user?.uid) {
+        try {
+          const result = await getUserProfile(user.uid);
+          if (result.success && result.profile?.avatarUrl) {
+            setAvatarUrl(result.profile.avatarUrl);
+          }
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      }
+    };
+
+    fetchUserProfile();
+  }, [user?.uid]);
 
   const handleLogout = async () => {
     await logOut();
@@ -30,10 +50,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { label: 'Tasks & Goals', icon: <IconChecklist size="1.2rem" stroke={1.5} />, path: '/dashboard/tasks' },
     { label: 'Health Tracker', icon: <IconHeartRateMonitor size="1.2rem" stroke={1.5} />, path: '/dashboard/health' },
     { label: 'Journal', icon: <IconNotebook size="1.2rem" stroke={1.5} />, path: '/dashboard/journal' },
-    { label: 'Violt Development', icon: <IconCode size="1.2rem" stroke={1.5} />, path: '/dashboard/violt' },
-    { label: 'AI Insights', icon: <IconBulb size="1.2rem" stroke={1.5} />, path: '/dashboard/ai' },
+    { label: 'Bullet Journal', icon: <IconBook size="1.2rem" stroke={1.5} />, path: '/dashboard/bullet' },
+    { label: 'Projects', icon: <IconCode size="1.2rem" stroke={1.5} />, path: '/dashboard/projects' },
     { label: 'Echo CLI', icon: <IconTerminal size="1.2rem" stroke={1.5} />, path: '/dashboard/echo' },
-    { label: 'Settings', icon: <IconUser size="1.2rem" stroke={1.5} />, path: '/dashboard/settings' },
+    { label: 'AI Insights', icon: <IconBulb size="1.2rem" stroke={1.5} />, path: '/dashboard/ai' },
+    { label: 'Reminders', icon: <IconBell size="1.2rem" stroke={1.5} />, path: '/dashboard/reminders' },
+    { label: 'Settings', icon: <IconSettings size="1.2rem" stroke={1.5} />, path: '/dashboard/settings' },
     { label: 'Profile', icon: <IconUser size="1.2rem" stroke={1.5} />, path: '/dashboard/profile' },
     { label: 'Logout', icon: <IconLogout size="1.2rem" stroke={1.5} />, path: '/auth/login', onClick: handleLogout }
   ];
@@ -86,8 +108,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   }}
                 >
                   <Group>
-                    <Avatar radius="xl" color="blue">
-                      {user?.email?.charAt(0).toUpperCase() || 'U'}
+                    <Avatar radius="xl" color="blue" src={avatarUrl}>
+                      {!avatarUrl && (user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U')}
                     </Avatar>
                     <div style={{ flex: 1 }}>
                       <Text size="sm" fw={500}>

@@ -274,7 +274,7 @@ export default function AIPage() {
                   { value: 'health', label: 'Health Data Only' },
                   { value: 'tasks', label: 'Tasks & Goals Only' },
                   { value: 'journal', label: 'Journal Entries Only' },
-                  { value: 'violt', label: 'Violt Development Only' },
+                  { value: 'projects', label: 'Projects Development Only' },
                 ]}
                 mb="md"
                 {...queryForm.getInputProps('context')}
@@ -420,9 +420,9 @@ export default function AIPage() {
             <Paper withBorder p="md" radius="md">
               <Group justify="space-between">
                 <div>
-                  <Text fw={500}>Violt Development Insights</Text>
+                  <Text fw={500}>Project Insights</Text>
                   <Text size="sm" c="dimmed">
-                    Enable AI suggestions for your Violt development projects
+                    Enable AI suggestions for your project development
                   </Text>
                 </div>
                 <Switch defaultChecked />

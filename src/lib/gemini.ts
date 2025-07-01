@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai';
 
 // Initialize the Gemini API with the API key
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -214,10 +214,12 @@ export async function generateWeeklyOverview(data: any) {
 
     // Build your Gemini prompt
     const prompt = buildWeeklyPrompt(weeklyData);
+    console.log('Gemini prompt:', prompt);
 
     const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-pro', safetySettings: safetySettings });
     const result = await model.generateContent(prompt);
     const response = result.response.text();
+    console.log('Gemini raw response:', response);
     try {
       // It's common for Gemini to return plain text for this kind of structured prompt, not JSON.
       // So, we directly use `response.text()` if no explicit JSON format was requested in the prompt for the *entire* output.
@@ -241,11 +243,11 @@ export async function generateWeeklyOverview(data: any) {
       return validSummaries;
 
     } catch (e) { // Catch any unexpected error during processing, though parseGeminiSummaries is quite safe.
-        console.error('Error processing AI response for weekly overview:', e);
-        return [{
-            title: 'Processing Error',
-            description: 'An error occurred while processing the AI response for weekly overview.'
-        }];
+      console.error('Error processing AI response for weekly overview:', e);
+      return [{
+        title: 'Processing Error',
+        description: 'An error occurred while processing the AI response for weekly overview.'
+      }];
     }
 
   } catch (error) {
@@ -265,25 +267,93 @@ function buildWeeklyPrompt(weeklyData: any): string {
   }
 
   // weeklyData should be an object with keys for each day, each with an array of events/tasks/etc.
-  let prompt = 'Summarize the following weekly activity log. For each day, provide a one-sentence summary and the main focus for that day. Format your response as:\nMonday: <summary> Focus: <main focus>\n...\n\n';
+  let prompt = `You are creating a weekly overview for a personal productivity dashboard. Based on the user's daily plans, accomplishments, and reflections, provide a meaningful summary for each day that actually reflects their personal activities, work, and goals.
 
+IMPORTANT: 
+- Only use the actual data provided below. Do not invent, imagine, or create fictional content.
+- If no meaningful data is available for a day, simply state "No activities recorded" for that day.
+- For the Focus, identify the main theme or area based on the actual activities. Use specific focus areas like "Project Work", "Productivity", "Learning", "Collaboration", "Planning", "Health", etc. Only use "Rest" if there truly were no activities.
+- You MUST provide summaries for ALL 7 days: Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday.
+
+Format your response exactly as:
+Sunday: <summary based on actual user data OR "No activities recorded">
+Focus: <specific focus area based on activities OR "Rest" only if no activities>
+
+Monday: <summary based on actual user data OR "No activities recorded">
+Focus: <specific focus area based on activities OR "Rest" only if no activities>
+
+Tuesday: <summary based on actual user data OR "No activities recorded">
+Focus: <specific focus area based on activities OR "Rest" only if no activities>
+
+Wednesday: <summary based on actual user data OR "No activities recorded">
+Focus: <specific focus area based on activities OR "Rest" only if no activities>
+
+Thursday: <summary based on actual user data OR "No activities recorded">
+Focus: <specific focus area based on activities OR "Rest" only if no activities>
+
+Friday: <summary based on actual user data OR "No activities recorded">
+Focus: <specific focus area based on activities OR "Rest" only if no activities>
+
+Saturday: <summary based on actual user data OR "No activities recorded">
+Focus: <specific focus area based on activities OR "Rest" only if no activities>
+
+Here is the user's actual daily data:
+
+`;
   const days = Object.keys(weeklyData);
+  const allDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
   if (days.length === 0) {
-    return 'No activities found for the week.';
+    // If no data at all, still ask for all days to be covered
+    prompt += 'No activities found for any day of the week.\n\n';
+    prompt += 'Please provide a summary for all 7 days (Sunday through Saturday) indicating "No activities recorded" for each day.';
+    return prompt;
   }
 
-  for (const day of days) {
+  // Process all days, whether they have data or not
+  for (const day of allDays) {
     const dayActivities = weeklyData[day];
-    if (Array.isArray(dayActivities) && dayActivities.length > 0) {
-      const activities = dayActivities
-        .map((item: any) => item?.title || item?.description)
-        .filter(Boolean);
+    prompt += `${day}:\n`;
 
-      if (activities.length > 0) {
-        prompt += `${day.charAt(0).toUpperCase() + day.slice(1)}: ${activities.join('; ')}\n`;
+    if (Array.isArray(dayActivities) && dayActivities.length > 0) {
+      let hasContent = false;
+      dayActivities.forEach((item: any, index: number) => {
+        if (item.description && item.description.trim() !== '') {
+          prompt += `  - ${item.description}\n`;
+          hasContent = true;
+        }
+        if (item.morningNotes && item.morningNotes.trim() !== '') {
+          prompt += `  - Morning notes: ${item.morningNotes}\n`;
+          hasContent = true;
+        }
+        if (item.accomplishments && item.accomplishments.trim() !== '') {
+          prompt += `  - Accomplishments: ${item.accomplishments}\n`;
+          hasContent = true;
+        }
+        if (item.challenges && item.challenges.trim() !== '') {
+          prompt += `  - Challenges: ${item.challenges}\n`;
+          hasContent = true;
+        }
+        if (item.reflectionNotes && item.reflectionNotes.trim() !== '') {
+          prompt += `  - Reflection: ${item.reflectionNotes}\n`;
+          hasContent = true;
+        }
+        if (item.tomorrowFocus && item.tomorrowFocus.trim() !== '') {
+          prompt += `  - Tomorrow's focus: ${item.tomorrowFocus}\n`;
+          hasContent = true;
+        }
+      });
+
+      if (!hasContent) {
+        prompt += `  - No activities recorded\n`;
       }
+    } else {
+      prompt += `  - No activities recorded\n`;
     }
+    prompt += '\n';
   }
+
+  prompt += '\nPlease provide a realistic summary based on the actual user data above. Do not invent fictional content. If no meaningful data is available for a day, indicate that no activities were recorded.';
 
   return prompt;
 }
@@ -296,7 +366,7 @@ function parseGeminiSummaries(text: string) {
   const lines = text.split('\n').filter(line => line.trim() !== ''); // Ensure no empty lines
   const summaries = lines.map(line => {
     const parts = line.split('Focus:');
-    const focus = parts.length > 1 ? parts[1].trim() : ''; // Extract focus if present
+    let focus = parts.length > 1 ? parts[1].trim() : ''; // Extract focus if present
 
     const dayAndSummaryPart = parts[0];
     const dayMatch = dayAndSummaryPart.match(/^(\w+):\s*/); // Match "DayName: "
@@ -307,6 +377,29 @@ function parseGeminiSummaries(text: string) {
     if (dayMatch && dayMatch[1]) {
       day = dayMatch[1].trim();
       summary = dayAndSummaryPart.substring(dayMatch[0].length).trim(); // Get text after "DayName: "
+
+      // If summary is empty or generic, provide a default
+      if (!summary || summary.length < 5) {
+        summary = 'No activities recorded';
+      }
+
+      // If focus is empty, try to derive it from summary or provide a meaningful default
+      if (!focus || focus.length < 3) {
+        // Try to derive focus from the summary content
+        if (summary.toLowerCase().includes('no activities')) {
+          focus = 'Rest';
+        } else if (summary.toLowerCase().includes('priority') || summary.toLowerCase().includes('task')) {
+          focus = 'Productivity';
+        } else if (summary.toLowerCase().includes('meeting') || summary.toLowerCase().includes('collaboration')) {
+          focus = 'Collaboration';
+        } else if (summary.toLowerCase().includes('learning') || summary.toLowerCase().includes('study')) {
+          focus = 'Learning';
+        } else if (summary.toLowerCase().includes('project')) {
+          focus = 'Project Work';
+        } else {
+          focus = 'General Activities';
+        }
+      }
     } else {
       // Line doesn't match "DayName: Summary..." format, could be a malformed line or just text
       // For now, we'll skip such lines by not returning a valid 'day'
@@ -317,6 +410,25 @@ function parseGeminiSummaries(text: string) {
     return { day, summary, focus };
   });
 
-  // Filter out entries where 'day' could not be parsed, as they are essential
-  return summaries.filter(s => s.day !== '');
+  // Filter out entries where 'day' could not be parsed
+  const validSummaries = summaries.filter(s => s.day !== '');
+
+  // Ensure all 7 days are represented - add missing days
+  const allDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const parsedDays = validSummaries.map(s => s.day);
+  allDays.forEach(dayName => {
+    if (!parsedDays.includes(dayName)) {
+      validSummaries.push({
+        day: dayName,
+        summary: 'No activities recorded',
+        focus: 'Rest'
+      });
+    }
+  });
+
+  // Sort by day order
+  const dayOrder = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  validSummaries.sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
+
+  return validSummaries;
 }

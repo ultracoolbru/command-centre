@@ -2,13 +2,14 @@
 
 import { getUserProfile } from '@/app/auth/login/actions';
 import { useAuth } from '@/lib/auth-context';
-import { Alert, Button, Container, Divider, Group, Paper, Select, Switch, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { uploadProfilePhoto } from '@/lib/photo-upload';
+import { Alert, Avatar, Button, Container, Divider, FileInput, Group, Paper, Select, Stack, Switch, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { IconInfoCircle } from '@tabler/icons-react';
+import { IconInfoCircle, IconPhoto, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { updateUserProfile } from './actions';
+import { updateUserAvatar, updateUserProfile } from './actions';
 
 // Common timezones for the select dropdown
 const timezones = [
@@ -29,6 +30,8 @@ export default function ProfilePage() {
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
+    const [photoUploading, setPhotoUploading] = useState(false);
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
     const router = useRouter();
 
     const form = useForm({
@@ -43,6 +46,7 @@ export default function ProfilePage() {
             telegramUsername: '',
             telegramFirstName: '',
             telegramLastName: '',
+            avatarUrl: '',
         },
         validate: {
             firstName: (value) => (value.length < 1 ? 'First name is required' : null),
@@ -71,7 +75,9 @@ export default function ProfilePage() {
                         telegramUsername: profile.telegramUsername || '',
                         telegramFirstName: profile.telegramFirstName || '',
                         telegramLastName: profile.telegramLastName || '',
+                        avatarUrl: profile.avatarUrl || '',
                     });
+                    setAvatarUrl(profile.avatarUrl || null);
                 }
             } catch (error) {
                 console.error('Error loading profile:', error);
@@ -82,6 +88,134 @@ export default function ProfilePage() {
 
         loadProfile();
     }, [user]);
+
+    const handlePhotoUpload = async (file: File | null) => {
+        if (!file || !user) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            notifications.show({
+                title: 'Invalid File',
+                message: 'Please select an image file.',
+                color: 'red',
+            });
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            notifications.show({
+                title: 'File Too Large',
+                message: 'Please select an image smaller than 5MB.',
+                color: 'red',
+            });
+            return;
+        }
+
+        setPhotoUploading(true);
+        try {
+            // Step 1: Upload photo to Firebase Storage (this will replace old ones)
+            const uploadResult = await uploadProfilePhoto(file, user.uid, avatarUrl || undefined);
+
+            if (uploadResult.success && uploadResult.avatarUrl) {
+                // Step 2: Update MongoDB with the new avatar URL
+                const dbResult = await updateUserAvatar(user.uid, uploadResult.avatarUrl);
+
+                if (dbResult.success) {
+                    // Step 3: Update local state
+                    setAvatarUrl(uploadResult.avatarUrl);
+                    form.setFieldValue('avatarUrl', uploadResult.avatarUrl);
+
+                    notifications.show({
+                        title: 'Photo Updated!',
+                        message: 'Your profile photo has been uploaded and saved successfully.',
+                        color: 'green',
+                    });
+                } else {
+                    notifications.show({
+                        title: 'Database Update Failed',
+                        message: dbResult.message || 'Photo uploaded but failed to save to profile.',
+                        color: 'orange',
+                    });
+                }
+            } else {
+                notifications.show({
+                    title: 'Upload Failed',
+                    message: uploadResult.message || 'Failed to upload photo.',
+                    color: 'red',
+                });
+            }
+        } catch (error) {
+            notifications.show({
+                title: 'Error',
+                message: 'Failed to upload photo. Please try again.',
+                color: 'red',
+            });
+            console.error('Photo upload error:', error);
+        } finally {
+            setPhotoUploading(false);
+        }
+    };
+
+    const handlePhotoDelete = async () => {
+        if (!user || !avatarUrl) return;
+
+        setPhotoUploading(true);
+        try {
+            // Step 1: Delete from Firebase Storage
+            const { deleteProfilePhoto, deletePhotoByUrl } = await import('@/lib/photo-upload');
+
+            // Try to delete by specific URL first, then fallback to deleting all user photos
+            let deleteResult;
+            if (avatarUrl.includes('firebasestorage.googleapis.com')) {
+                deleteResult = await deletePhotoByUrl(avatarUrl);
+                if (!deleteResult.success) {
+                    console.log('URL-based delete failed, trying folder-based delete');
+                    deleteResult = await deleteProfilePhoto(user.uid);
+                }
+            } else {
+                deleteResult = await deleteProfilePhoto(user.uid);
+            }
+
+            if (deleteResult.success) {
+                // Step 2: Update MongoDB to remove avatar URL
+                const dbResult = await updateUserAvatar(user.uid, null);
+
+                if (dbResult.success) {
+                    // Step 3: Update local state
+                    setAvatarUrl(null);
+                    form.setFieldValue('avatarUrl', '');
+
+                    notifications.show({
+                        title: 'Photo Deleted!',
+                        message: 'Your profile photo has been removed successfully.',
+                        color: 'green',
+                    });
+                } else {
+                    notifications.show({
+                        title: 'Database Update Failed',
+                        message: dbResult.message || 'Photo deleted but failed to update profile.',
+                        color: 'orange',
+                    });
+                }
+            } else {
+                notifications.show({
+                    title: 'Delete Failed',
+                    message: deleteResult.message || 'Failed to delete photo.',
+                    color: 'red',
+                });
+            }
+        } catch (error) {
+            notifications.show({
+                title: 'Error',
+                message: 'Failed to delete photo. Please try again.',
+                color: 'red',
+            });
+            console.error('Photo delete error:', error);
+        } finally {
+            setPhotoUploading(false);
+        }
+    };
 
     const handleSubmit = async (values: typeof form.values) => {
         if (!user) {
@@ -107,6 +241,7 @@ export default function ProfilePage() {
                 telegramUsername: values.telegramUsername || undefined,
                 telegramFirstName: values.telegramFirstName || undefined,
                 telegramLastName: values.telegramLastName || undefined,
+                avatarUrl: avatarUrl || undefined,
             });
 
             if (result.success) {
@@ -166,8 +301,49 @@ export default function ProfilePage() {
                     mb="lg"
                 >
                     Complete your profile to unlock the full potential of Command Dashboard.
-                    This information helps us provide personalized insights and features.
+                    This information helps us personalize insights and features.
                 </Alert>
+
+                <Stack mb="lg">
+                    <Text size="sm" fw={500}>Profile Photo</Text>
+                    <Group>
+                        <Avatar
+                            src={avatarUrl}
+                            size={80}
+                            radius="md"
+                            alt="Profile photo"
+                        >
+                            <IconPhoto size="2rem" />
+                        </Avatar>
+                        <Stack gap="xs">
+                            <Group gap="xs">
+                                <FileInput
+                                    placeholder="Choose profile photo"
+                                    accept="image/*"
+                                    onChange={handlePhotoUpload}
+                                    leftSection={<IconUpload size="1rem" />}
+                                    disabled={photoUploading}
+                                    style={{ flex: 1 }}
+                                />
+                                {avatarUrl && (
+                                    <Button
+                                        variant="outline"
+                                        color="red"
+                                        size="sm"
+                                        onClick={handlePhotoDelete}
+                                        disabled={photoUploading}
+                                        leftSection={<IconTrash size="1rem" />}
+                                    >
+                                        Delete
+                                    </Button>
+                                )}
+                            </Group>
+                            <Text size="xs" c="dimmed">
+                                Max file size: 5MB. Supported formats: JPG, PNG, GIF
+                            </Text>
+                        </Stack>
+                    </Group>
+                </Stack>
 
                 <form onSubmit={form.onSubmit(handleSubmit)}>
                     <Group grow mb="md">
@@ -250,6 +426,17 @@ export default function ProfilePage() {
                             placeholder="Last name on Telegram"
                             {...form.getInputProps('telegramLastName')}
                         />
+                    </Group>
+
+                    <Group justify="flex-end" mb="md">
+                        <Button
+                            variant="outline"
+                            color="red"
+                            onClick={handlePhotoDelete}
+                            disabled={photoUploading}
+                        >
+                            {photoUploading ? 'Deleting...' : 'Remove Photo'}
+                        </Button>
                     </Group>
 
                     <Group justify="space-between">

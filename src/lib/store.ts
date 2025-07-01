@@ -7,7 +7,7 @@ interface AuthState {
   setUser: (user: any | null) => void;
 }
 
-export type DataKey = 'dailyPlans' | 'tasks' | 'goals' | 'healthLogs' | 'journalEntries' | 'violtPhases' | 'violtTasks' | 'bulletEntries' | 'collections' | 'echoTasks' | 'reminders' | 'aiInsights';
+export type DataKey = 'dailyPlans' | 'tasks' | 'goals' | 'healthLogs' | 'journalEntries' | 'projectPhases' | 'projectTasks' | 'bulletEntries' | 'collections' | 'echoTasks' | 'reminders' | 'aiInsights';
 
 interface DataState {
   dailyPlans: any[];
@@ -15,8 +15,8 @@ interface DataState {
   goals: any[];
   healthLogs: any[];
   journalEntries: any[];
-  violtPhases: any[];
-  violtTasks: any[];
+  projectPhases: any[];
+  projectTasks: any[];
   bulletEntries: any[];
   collections: any[];
   echoTasks: any[];
@@ -64,8 +64,8 @@ export const useDataStore = create<DataState>()(
       goals: [],
       healthLogs: [],
       journalEntries: [],
-      violtPhases: [],
-      violtTasks: [],
+      projectPhases: [],
+      projectTasks: [],
       bulletEntries: [],
       collections: [],
       echoTasks: [],
@@ -117,8 +117,8 @@ export const useDataStore = create<DataState>()(
         goals: [],
         healthLogs: [],
         journalEntries: [],
-        violtPhases: [],
-        violtTasks: [],
+        projectPhases: [],
+        projectTasks: [],
         bulletEntries: [],
         collections: [],
         echoTasks: [],
@@ -136,8 +136,8 @@ export const useDataStore = create<DataState>()(
         goals: state.goals,
         healthLogs: state.healthLogs,
         journalEntries: state.journalEntries,
-        violtPhases: state.violtPhases,
-        violtTasks: state.violtTasks,
+        projectPhases: state.projectPhases,
+        projectTasks: state.projectTasks,
         bulletEntries: state.bulletEntries,
         collections: state.collections,
         echoTasks: state.echoTasks,

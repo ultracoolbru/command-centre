@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from 'react';
-import { Title, Container, Card, Text, Button, Group, TextInput, Textarea, Grid, Paper, Tabs, Badge, ActionIcon, Progress, Timeline, Menu } from '@mantine/core';
+import { ActionIcon, Badge, Button, Card, Container, Grid, Group, Menu, Paper, Progress, Select, Tabs, Text, TextInput, Textarea, Timeline, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { IconBrandGithub, IconCode, IconBulb, IconCheck, IconX, IconDotsVertical, IconMicrophone, IconBrandGit, IconBug, IconRocket } from '@tabler/icons-react';
+import { IconBrandGit, IconBrandGithub, IconBug, IconBulb, IconCheck, IconCode, IconDotsVertical, IconMicrophone, IconRocket, IconX } from '@tabler/icons-react';
+import { useState } from 'react';
 
 interface ProjectPhase {
   id: string;
@@ -23,7 +23,7 @@ interface DevTask {
   priority: 'low' | 'medium' | 'high';
 }
 
-export default function VioltPage() {
+export default function ProjectsPage() {
   const [activeTab, setActiveTab] = useState<string | null>('overview');
   const [isRecording, setIsRecording] = useState(false);
 
@@ -214,26 +214,46 @@ export default function VioltPage() {
 
   return (
     <Container size="lg">
-      <Title order={1} mb="md">Violt Developer Panel</Title>
+      <Title order={1} mb="md">Developer Panel</Title>
 
       <Tabs value={activeTab} onChange={setActiveTab} mb="xl">
         <Tabs.List>
-          <Tabs.Tab value="overview" icon={<IconRocket size="0.8rem" />}>Project Overview</Tabs.Tab>
-          <Tabs.Tab value="tasks" icon={<IconCode size="0.8rem" />}>Development Tasks</Tabs.Tab>
-          <Tabs.Tab value="github" icon={<IconBrandGithub size="0.8rem" />}>GitHub Integration</Tabs.Tab>
-          <Tabs.Tab value="ai" icon={<IconBulb size="0.8rem" />}>AI Insights</Tabs.Tab>
+          <Tabs.Tab value="overview">
+            <Group gap={6}>
+              <IconRocket size="0.8rem" />
+              Project Overview
+            </Group>
+          </Tabs.Tab>
+          <Tabs.Tab value="tasks">
+            <Group gap={6}>
+              <IconCode size="0.8rem" />
+              Development Tasks
+            </Group>
+          </Tabs.Tab>
+          <Tabs.Tab value="github">
+            <Group gap={6}>
+              <IconBrandGithub size="0.8rem" />
+              GitHub Integration
+            </Group>
+          </Tabs.Tab>
+          <Tabs.Tab value="ai">
+            <Group gap={6}>
+              <IconBulb size="0.8rem" />
+              AI Insights
+            </Group>
+          </Tabs.Tab>
         </Tabs.List>
       </Tabs>
 
       {activeTab === 'overview' && (
         <>
-          <Group position="apart" mb="md">
+          <Group p="apart" mb="md">
             <Title order={2}>Project Phases</Title>
             <Button
               variant={isRecording ? "filled" : "outline"}
               color={isRecording ? "red" : "blue"}
               onClick={toggleVoiceRecording}
-              leftIcon={<IconMicrophone size="1.1rem" />}
+              leftSection={<IconMicrophone size="1.1rem" />}
             >
               {isRecording ? "Stop Recording" : "Voice Input"}
             </Button>
@@ -241,7 +261,7 @@ export default function VioltPage() {
 
           {phases.map((phase) => (
             <Card key={phase.id} shadow="sm" p="lg" radius="md" withBorder mb="xl">
-              <Group position="apart" mb="xs">
+              <Group p="apart" mb="xs">
                 <div>
                   <Title order={3}>{phase.name}</Title>
                   <Badge color={getStatusColor(phase.status)} mb="md">
@@ -266,9 +286,9 @@ export default function VioltPage() {
               <Text size="sm" mb="xs">Progress: {phase.progress}%</Text>
               <Progress value={phase.progress} mb="md" />
 
-              <Group position="apart">
+              <Group justify="space-between">
                 <Button
-                  compact
+                  size="compact-sm"
                   variant="light"
                   onClick={() => updatePhaseProgress(phase.id, Math.max(0, phase.progress - 10))}
                   disabled={phase.progress <= 0}
@@ -276,7 +296,7 @@ export default function VioltPage() {
                   -10%
                 </Button>
                 <Button
-                  compact
+                  size="compact-sm"
                   variant="light"
                   onClick={() => updatePhaseProgress(phase.id, Math.min(100, phase.progress + 10))}
                   disabled={phase.progress >= 100}
@@ -355,12 +375,12 @@ export default function VioltPage() {
                 {...taskForm.getInputProps('priority')}
               />
 
-              <Group position="apart" mt="md">
+              <Group p="apart" mt="md">
                 <Button
                   variant={isRecording ? "filled" : "outline"}
                   color={isRecording ? "red" : "blue"}
                   onClick={toggleVoiceRecording}
-                  leftIcon={<IconMicrophone size="1.1rem" />}
+                  leftSection={<IconMicrophone size="1.1rem" />}
                 >
                   {isRecording ? "Stop Recording" : "Voice Input"}
                 </Button>
@@ -375,8 +395,8 @@ export default function VioltPage() {
                 <Title order={3} mb="md">To Do</Title>
                 {tasks.filter(task => task.status === 'todo').map((task) => (
                   <Paper key={task.id} withBorder p="md" radius="md" mb="sm">
-                    <Group position="apart" mb="xs">
-                      <Text weight={500}>{task.title}</Text>
+                    <Group p="apart" mb="xs">
+                      <Text w={500}>{task.title}</Text>
                       <Menu position="bottom-end">
                         <Menu.Target>
                           <ActionIcon>
@@ -396,7 +416,7 @@ export default function VioltPage() {
 
                     <Text size="sm" color="dimmed" mb="sm">{task.description}</Text>
 
-                    <Group spacing="xs">
+                    <Group gap="xs">
                       <Badge color={getPriorityColor(task.priority)}>
                         {task.priority}
                       </Badge>
@@ -420,8 +440,8 @@ export default function VioltPage() {
                 <Title order={3} mb="md">In Progress</Title>
                 {tasks.filter(task => task.status === 'in-progress').map((task) => (
                   <Paper key={task.id} withBorder p="md" radius="md" mb="sm">
-                    <Group position="apart" mb="xs">
-                      <Text weight={500}>{task.title}</Text>
+                    <Group p="apart" mb="xs">
+                      <Text w={500}>{task.title}</Text>
                       <Menu position="bottom-end">
                         <Menu.Target>
                           <ActionIcon>
@@ -444,7 +464,7 @@ export default function VioltPage() {
 
                     <Text size="sm" color="dimmed" mb="sm">{task.description}</Text>
 
-                    <Group spacing="xs">
+                    <Group gap="xs">
                       <Badge color={getPriorityColor(task.priority)}>
                         {task.priority}
                       </Badge>
@@ -475,11 +495,11 @@ export default function VioltPage() {
             </Group>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Group position="apart">
+              <Group p="apart">
                 <Group>
                   <IconBrandGit size="1.2rem" />
                   <div>
-                    <Text weight={500}>violt/violt-core</Text>
+                    <Text w={500}>violt/violt-core</Text>
                     <Text size="sm" color="dimmed">Core platform repository</Text>
                   </div>
                 </Group>
@@ -490,11 +510,11 @@ export default function VioltPage() {
             </Paper>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Group position="apart">
+              <Group p="apart">
                 <Group>
                   <IconBrandGit size="1.2rem" />
                   <div>
-                    <Text weight={500}>violt/smartthings-integration</Text>
+                    <Text w={500}>violt/smartthings-integration</Text>
                     <Text size="sm" color="dimmed">SmartThings integration layer</Text>
                   </div>
                 </Group>
@@ -505,11 +525,11 @@ export default function VioltPage() {
             </Paper>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Group position="apart">
+              <Group p="apart">
                 <Group>
                   <IconBrandGit size="1.2rem" />
                   <div>
-                    <Text weight={500}>violt/violt-ai</Text>
+                    <Text w={500}>violt/violt-ai</Text>
                     <Text size="sm" color="dimmed">AI cloud extension</Text>
                   </div>
                 </Group>
@@ -520,11 +540,11 @@ export default function VioltPage() {
             </Paper>
 
             <Paper withBorder p="md" radius="md">
-              <Group position="apart">
+              <Group p="apart">
                 <Group>
                   <IconBrandGit size="1.2rem" />
                   <div>
-                    <Text weight={500}>violt/robotics-plugin</Text>
+                    <Text w={500}>violt/robotics-plugin</Text>
                     <Text size="sm" color="dimmed">Robotics integration plugin</Text>
                   </div>
                 </Group>
@@ -568,21 +588,21 @@ export default function VioltPage() {
             </Text>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Text weight={500}>Cross-Platform Compatibility</Text>
+              <Text w={500}>Cross-Platform Compatibility</Text>
               <Text>
                 Based on your current tasks, consider implementing a platform-agnostic file path handler to resolve the Windows path issues in Issue #42. This would improve compatibility across Windows and Raspberry Pi environments.
               </Text>
             </Paper>
 
             <Paper withBorder p="md" radius="md" mb="md">
-              <Text weight={500}>SmartThings Integration</Text>
+              <Text w={500}>SmartThings Integration</Text>
               <Text>
                 The OAuth token refresh issue might be related to incorrect token storage or expiration handling. Consider implementing a more robust token management system with proper error handling and automatic refresh logic.
               </Text>
             </Paper>
 
             <Paper withBorder p="md" radius="md">
-              <Text weight={500}>Development Prioritization</Text>
+              <Text w={500}>Development Prioritization</Text>
               <Text>
                 Based on your current progress, focusing on completing the Core Platform (85% complete) before expanding SmartThings integration would create a more stable foundation. Consider postponing AI Cloud tasks until core functionality is stable.
               </Text>
@@ -596,7 +616,7 @@ export default function VioltPage() {
             </Text>
 
             <Paper withBorder p="md" radius="md">
-              <Text weight={500}>TypeScript Scripting Engine</Text>
+              <Text w={500}>TypeScript Scripting Engine</Text>
               <Text>
                 When implementing the database-stored scripts feature, consider using a sandboxed execution environment with resource limits to prevent potential security issues and resource exhaustion. Libraries like vm2 or isolated-vm can help create secure script execution environments.
               </Text>

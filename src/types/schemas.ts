@@ -124,7 +124,7 @@ export const JournalEntrySchema = z.object({
   updatedAt: z.date(),
 });
 
-export const VioltPhaseSchema = z.object({
+export const ProjectPhaseSchema = z.object({
   id: z.string(),
   userId: z.string(),
   name: z.string(),
@@ -135,7 +135,7 @@ export const VioltPhaseSchema = z.object({
   updatedAt: z.date(),
 });
 
-export const VioltTaskSchema = z.object({
+export const ProjectTaskSchema = z.object({
   id: z.string(),
   userId: z.string(),
   title: z.string(),
@@ -212,8 +212,8 @@ export type Task = z.infer<typeof TaskSchema>;
 export type Goal = z.infer<typeof GoalSchema>;
 export type HealthLog = z.infer<typeof HealthLogSchema>;
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
-export type VioltPhase = z.infer<typeof VioltPhaseSchema>;
-export type VioltTask = z.infer<typeof VioltTaskSchema>;
+export type ProjectPhase = z.infer<typeof ProjectPhaseSchema>;
+export type ProjectTask = z.infer<typeof ProjectTaskSchema>;
 export type BulletEntry = z.infer<typeof BulletEntrySchema>;
 export type Collection = z.infer<typeof CollectionSchema>;
 export type EchoTask = z.infer<typeof EchoTaskSchema>;
