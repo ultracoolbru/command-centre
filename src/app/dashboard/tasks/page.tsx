@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useVoiceCommands } from '@/lib/voice';
 import { Goal, Task } from '@/types/schemas';
 import { ActionIcon, Badge, Button, Card, Checkbox, Container, Grid, Group, Menu, Modal, Paper, Progress, Select, Tabs, Text, Textarea, TextInput, Title, Tooltip } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconDotsVertical, IconEdit, IconFilter, IconFlag, IconMicrophone, IconSortAscending, IconTrash } from '@tabler/icons-react';
@@ -49,6 +50,11 @@ export default function TasksPage() {
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [lastNotificationTime, setLastNotificationTime] = useState<number>(0);
   const [lastVoiceInput, setLastVoiceInput] = useState<string>('');
+
+  // Filter and sort states
+  const [filterType, setFilterType] = useState<'all' | 'completed' | 'incomplete' | 'high' | 'medium' | 'low'>('all');
+  const [sortBy, setSortBy] = useState<'priority' | 'date' | 'title'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Fetch goals and tasks on component mount and when user changes
   useEffect(() => {
@@ -96,6 +102,7 @@ export default function TasksPage() {
       priority: 'medium' as 'low' | 'medium' | 'high',
       tags: '',
       goal: '',
+      dueDate: '',
     },
     validate: {
       title: (value) => (value.trim() === '' ? 'Task title is required' : null),
@@ -126,6 +133,7 @@ export default function TasksPage() {
       priority: 'medium' as 'low' | 'medium' | 'high',
       tags: '',
       goal: '',
+      dueDate: '',
     },
     validate: {
       title: (value) => (value.trim() === '' ? 'Task title is required' : null),
@@ -150,6 +158,7 @@ export default function TasksPage() {
         priority: values.priority,
         tags: values.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
         goalId: values.goal || undefined,
+        dueDate: values.dueDate || undefined,
       };
 
       const result = await createTask(user.uid, taskData);
@@ -292,6 +301,7 @@ export default function TasksPage() {
         priority: values.priority,
         tags: values.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
         goalId: values.goal || undefined,
+        dueDate: values.dueDate || undefined,
       };
 
       const result = await editTask(user.uid, editingTask.id, taskData);
@@ -335,6 +345,7 @@ export default function TasksPage() {
       priority: task.priority,
       tags: task.tags.join(', '),
       goal: task.goalId || '',
+      dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
     });
     setEditTaskModalOpened(true);
   };
@@ -491,6 +502,100 @@ export default function TasksPage() {
 
   const toggleVoiceRecording = () => {
     toggleVoiceMode();
+  };
+
+  // Filter and sort functions
+  const getFilteredAndSortedTasks = (includeCompleted = true) => {
+    let filteredTasks = [...tasks];
+
+    // First filter out completed tasks if includeCompleted is false
+    if (!includeCompleted) {
+      filteredTasks = filteredTasks.filter(task => !task.completed);
+    } else {
+      // Apply other filters only if we're including completed tasks
+      switch (filterType) {
+        case 'completed':
+          filteredTasks = filteredTasks.filter(task => task.completed);
+          break;
+        case 'incomplete':
+          filteredTasks = filteredTasks.filter(task => !task.completed);
+          break;
+        case 'high':
+          filteredTasks = filteredTasks.filter(task => task.priority === 'high');
+          break;
+        case 'medium':
+          filteredTasks = filteredTasks.filter(task => task.priority === 'medium');
+          break;
+        case 'low':
+          filteredTasks = filteredTasks.filter(task => task.priority === 'low');
+          break;
+        case 'all':
+        default:
+          // No filter, show all tasks
+          break;
+      }
+    }
+
+    // Apply sorting
+    filteredTasks.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'priority':
+          const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+          comparison = priorityOrder[b.priority] - priorityOrder[a.priority];
+          break;
+        case 'title':
+          comparison = a.title.localeCompare(b.title);
+          break;
+        case 'date':
+        default:
+          // Use due date if available, otherwise fall back to created date
+          const aDate = a.dueDate ? new Date(a.dueDate).getTime() : new Date(a.createdAt).getTime();
+          const bDate = b.dueDate ? new Date(b.dueDate).getTime() : new Date(b.createdAt).getTime();
+          comparison = bDate - aDate;
+          break;
+      }
+
+      return sortOrder === 'asc' ? -comparison : comparison;
+    });
+
+    return filteredTasks;
+  };
+
+  // Get active (incomplete) tasks
+  const getActiveTasks = () => {
+    return getFilteredAndSortedTasks(false);
+  };
+
+  // Get completed tasks
+  const getCompletedTasks = () => {
+    return tasks.filter(task => task.completed).sort((a, b) => {
+      // Sort completed tasks by completion date (most recent first)
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  };
+
+  const handleFilterChange = (newFilter: typeof filterType) => {
+    setFilterType(newFilter);
+  };
+
+  const handleSortChange = (newSort: typeof sortBy) => {
+    setSortBy(newSort);
+  };
+
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
+  const getFilterDisplayName = () => {
+    switch (filterType) {
+      case 'high': return 'High Priority';
+      case 'medium': return 'Medium Priority';
+      case 'low': return 'Low Priority';
+      case 'all':
+      default: return 'All Active Tasks';
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -1007,6 +1112,20 @@ export default function TasksPage() {
                         }}
                       />
                     </Grid.Col>
+                    <Grid.Col span={{ base: 12, md: 6 }}>
+                      <DateInput
+                        label="Due Date (optional)"
+                        placeholder="Select due date"
+                        clearable
+                        mb="md"
+                        valueFormat="YYYY-MM-DD"
+                        {...taskForm.getInputProps('dueDate')}
+                        style={{
+                          border: currentVoiceField === 'dueDate' ? '2px solid #1c7ed6' : undefined,
+                          borderRadius: currentVoiceField === 'dueDate' ? '4px' : undefined,
+                        }}
+                      />
+                    </Grid.Col>
                   </Grid>
 
                   <Group justify="space-between" mt="md">
@@ -1057,54 +1176,111 @@ export default function TasksPage() {
                 </form>
               </Card>
 
+              {/* Active Tasks Section */}
               <Card shadow="sm" p="lg" radius="md" withBorder mb="xl">
                 <Group justify="space-between" mb="md">
-                  <Title order={2}>Task List</Title>
+                  <Title order={2}>
+                    Active Tasks - {getFilterDisplayName()}
+                    <Text component="span" size="sm" c="dimmed" ml={8}>
+                      ({getActiveTasks().length} {getActiveTasks().length === 1 ? 'task' : 'tasks'})
+                    </Text>
+                  </Title>
                   <Group>
                     <Menu position="bottom-end">
                       <Menu.Target>
-                        <ActionIcon variant="light">
+                        <ActionIcon
+                          variant={filterType !== 'all' || sortBy !== 'date' || sortOrder !== 'desc' ? "filled" : "light"}
+                          color={filterType !== 'all' || sortBy !== 'date' || sortOrder !== 'desc' ? "blue" : undefined}
+                        >
                           <IconFilter size="1.1rem" />
                         </ActionIcon>
                       </Menu.Target>
                       <Menu.Dropdown>
                         <Menu.Label>Filter by</Menu.Label>
-                        <Menu.Item>
+                        <Menu.Item
+                          onClick={() => handleFilterChange('all')}
+                          style={{ backgroundColor: filterType === 'all' ? 'var(--mantine-color-blue-1)' : undefined }}
+                        >
                           <Group gap={8}>
                             <IconCheck size="1rem" />
-                            All Tasks
+                            All Active Tasks {filterType === 'all' && '✓'}
                           </Group>
                         </Menu.Item>
-                        <Menu.Item>
+                        <Menu.Item
+                          onClick={() => handleFilterChange('high')}
+                          style={{ backgroundColor: filterType === 'high' ? 'var(--mantine-color-blue-1)' : undefined }}
+                        >
                           <Group gap={8}>
                             <IconFlag size="1rem" color="red" />
-                            High Priority
+                            High Priority {filterType === 'high' && '✓'}
                           </Group>
                         </Menu.Item>
-                        <Menu.Item>
+                        <Menu.Item
+                          onClick={() => handleFilterChange('medium')}
+                          style={{ backgroundColor: filterType === 'medium' ? 'var(--mantine-color-blue-1)' : undefined }}
+                        >
                           <Group gap={8}>
                             <IconFlag size="1rem" color="yellow" />
-                            Medium Priority
+                            Medium Priority {filterType === 'medium' && '✓'}
                           </Group>
                         </Menu.Item>
-                        <Menu.Item>
+                        <Menu.Item
+                          onClick={() => handleFilterChange('low')}
+                          style={{ backgroundColor: filterType === 'low' ? 'var(--mantine-color-blue-1)' : undefined }}
+                        >
                           <Group gap={8}>
                             <IconFlag size="1rem" color="green" />
-                            Low Priority
+                            Low Priority {filterType === 'low' && '✓'}
                           </Group>
                         </Menu.Item>
                         <Menu.Divider />
                         <Menu.Label>Sort by</Menu.Label>
-                        <Menu.Item>
+                        <Menu.Item
+                          onClick={() => handleSortChange('priority')}
+                          style={{ backgroundColor: sortBy === 'priority' ? 'var(--mantine-color-blue-1)' : undefined }}
+                        >
                           <Group gap={8}>
                             <IconSortAscending size="1rem" />
-                            Priority
+                            Priority {sortBy === 'priority' && '✓'}
                           </Group>
                         </Menu.Item>
-                        <Menu.Item>
+                        <Menu.Item
+                          onClick={() => handleSortChange('date')}
+                          style={{ backgroundColor: sortBy === 'date' ? 'var(--mantine-color-blue-1)' : undefined }}
+                        >
                           <Group gap={8}>
                             <IconSortAscending size="1rem" />
-                            Due Date
+                            Due Date {sortBy === 'date' && '✓'}
+                          </Group>
+                        </Menu.Item>
+                        <Menu.Item
+                          onClick={() => handleSortChange('title')}
+                          style={{ backgroundColor: sortBy === 'title' ? 'var(--mantine-color-blue-1)' : undefined }}
+                        >
+                          <Group gap={8}>
+                            <IconSortAscending size="1rem" />
+                            Title {sortBy === 'title' && '✓'}
+                          </Group>
+                        </Menu.Item>
+                        <Menu.Divider />
+                        <Menu.Item onClick={toggleSortOrder}>
+                          <Group gap={8}>
+                            <IconSortAscending size="1rem" />
+                            {sortOrder === 'asc' ? 'Sort Descending' : 'Sort Ascending'}
+                          </Group>
+                        </Menu.Item>
+                        <Menu.Divider />
+                        <Menu.Item
+                          onClick={() => {
+                            setFilterType('all');
+                            setSortBy('date');
+                            setSortOrder('desc');
+                          }}
+                          c="gray"
+                        >
+                          <Group gap={8}>
+                            <IconFilter size="1rem" />
+                            Clear All Filters
                           </Group>
                         </Menu.Item>
                       </Menu.Dropdown>
@@ -1116,14 +1292,14 @@ export default function TasksPage() {
                   <Text color="dimmed" ta="center" py="xl">
                     Loading tasks...
                   </Text>
-                ) : tasks.length === 0 ? (
+                ) : getActiveTasks().length === 0 ? (
                   <Text color="dimmed" ta="center" py="xl">
-                    No tasks found. Add a new task to get started!
+                    No active tasks found. Add a new task to get started!
                   </Text>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
                     <Paper withBorder>
-                      {tasks.map((task) => (
+                      {getActiveTasks().map((task) => (
                         <Group key={task.id} p="md" style={{ borderBottom: '1px solid #eee' }}>
                           <Checkbox
                             checked={task.completed}
@@ -1151,6 +1327,105 @@ export default function TasksPage() {
                                   {goals.find(g => g.id === task.goalId)?.title || 'Goal'}
                                 </Badge>
                               )}
+                              {task.dueDate && (
+                                <Badge color="orange" variant="light" size="sm">
+                                  Due: {new Date(task.dueDate).toLocaleDateString()}
+                                </Badge>
+                              )}
+                            </Group>
+                          </div>
+                          <Menu position="bottom-end">
+                            <Menu.Target>
+                              <ActionIcon>
+                                <IconDotsVertical size="1rem" />
+                              </ActionIcon>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                              <Menu.Item onClick={() => openEditTaskModal(task)}>
+                                <Group gap={8}>
+                                  <IconEdit size="1rem" />
+                                  Edit
+                                </Group>
+                              </Menu.Item>
+                              <Menu.Item
+                                color="red"
+                                onClick={() => deleteTaskHandler(task.id)}
+                              >
+                                <Group gap={8}>
+                                  <IconTrash size="1rem" />
+                                  Delete
+                                </Group>
+                              </Menu.Item>
+                            </Menu.Dropdown>
+                          </Menu>
+                        </Group>
+                      ))}
+                    </Paper>
+                  </div>
+                )}
+              </Card>
+
+              {/* Completed Tasks Section */}
+              <Card shadow="sm" p="lg" radius="md" withBorder mb="xl">
+                <Group justify="space-between" mb="md">
+                  <Title order={2}>
+                    Completed Tasks
+                    <Text component="span" size="sm" c="dimmed" ml={8}>
+                      ({getCompletedTasks().length} {getCompletedTasks().length === 1 ? 'task' : 'tasks'})
+                    </Text>
+                  </Title>
+                </Group>
+
+                {isLoadingTasks ? (
+                  <Text color="dimmed" ta="center" py="xl">
+                    Loading completed tasks...
+                  </Text>
+                ) : getCompletedTasks().length === 0 ? (
+                  <Text color="dimmed" ta="center" py="xl">
+                    No completed tasks yet. Complete some tasks to see them here!
+                  </Text>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <Paper withBorder>
+                      {getCompletedTasks().map((task) => (
+                        <Group key={task.id} p="md" style={{ borderBottom: '1px solid #eee', opacity: 0.7 }}>
+                          <Checkbox
+                            checked={task.completed}
+                            onChange={() => toggleTaskCompletion(task.id)}
+                            size="md"
+                          />
+                          <div style={{ flex: 1 }}>
+                            <Text w={500} td="line-through" c="dimmed">{task.title}</Text>
+                            {task.description && (
+                              <Text size="sm" c="dimmed" mt={2}>
+                                {task.description}
+                              </Text>
+                            )}
+                            <Group gap="xs" mt={4}>
+                              <Badge color="green" variant="light" size="sm">
+                                Completed
+                              </Badge>
+                              <Badge color={getPriorityColor(task.priority)} variant="outline" size="sm">
+                                {task.priority}
+                              </Badge>
+                              {task.tags.map(tag => (
+                                <Badge key={tag} variant="outline" size="sm" c="dimmed">
+                                  {tag}
+                                </Badge>
+                              ))}
+                              {task.goalId && (
+                                <Badge color="blue" variant="outline" size="sm" c="dimmed">
+                                  {goals.find(g => g.id === task.goalId)?.title || 'Goal'}
+                                </Badge>
+                              )}
+                              {task.dueDate && (
+                                <Badge color="gray" variant="outline" size="sm">
+                                  Due: {new Date(task.dueDate).toLocaleDateString()}
+                                </Badge>
+                              )}
+                              <Badge color="gray" variant="outline" size="sm">
+                                Completed: {new Date(task.updatedAt).toLocaleDateString()}
+                              </Badge>
                             </Group>
                           </div>
                           <Menu position="bottom-end">
@@ -1420,6 +1695,16 @@ export default function TasksPage() {
                 clearable
                 mb="md"
                 {...editTaskForm.getInputProps('goal')}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <DateInput
+                label="Due Date (optional)"
+                placeholder="Select due date"
+                clearable
+                mb="md"
+                valueFormat="YYYY-MM-DD"
+                {...editTaskForm.getInputProps('dueDate')}
               />
             </Grid.Col>
           </Grid>

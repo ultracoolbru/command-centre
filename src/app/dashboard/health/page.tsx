@@ -1,11 +1,21 @@
 "use client";
 
-import { Box, Button, Card, Container, Grid, Group, MultiSelect, NumberInput, Paper, Slider, Tabs, Text, TextInput, Timeline, Title } from '@mantine/core';
+import { useAuth } from '@/lib/auth-context';
+import { ActionIcon, Box, Button, Card, Container, Grid, Group, MultiSelect, NumberInput, Slider, Tabs, Text, TextInput, Timeline, Title, Tooltip } from '@mantine/core';
+import { DatePickerInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { Icon360View, IconApple, IconCheck, IconHeartRateMonitor, IconMicrophone, IconMoon, IconPill } from '@tabler/icons-react';
-import { useState } from 'react';
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useCallback, useEffect, useState } from 'react';
+import { CartesianGrid, Legend, Line, LineChart, Tooltip as RechartsTooltip, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import AIHealthInsightsSection from './AIHealthInsightsSection';
+// Utility to ensure a Date object
+function ensureDate(d: Date | string | null | undefined): Date | null {
+  if (!d) return null;
+  if (d instanceof Date) return d;
+  const parsed = new Date(d);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
 
 // Mock data for charts
 const mockMoodData = [
@@ -19,9 +29,71 @@ const mockMoodData = [
 ];
 
 export default function HealthTrackerPage() {
+  const { user } = useAuth();
   const [date, setDate] = useState<Date | null>(new Date());
   const [activeTab, setActiveTab] = useState<string | null>('daily');
   const [isRecording, setIsRecording] = useState(false);
+  const [trendData, setTrendData] = useState<any[]>([]);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+
+  // Fetch health logs for the selected week and user
+  useEffect(() => {
+    if (!user?.uid || !date) {
+      setTrendData([]);
+      return;
+    }
+    setTrendLoading(true);
+    const safeDate = ensureDate(date);
+    fetch(`/api/healthlog/week?userId=${user.uid}&date=${safeDate ? safeDate.toISOString() : ''}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.logs)) {
+          // Map logs to chart data format
+          setTrendData(data.logs.map((log: any) => ({
+            date: log.date ? new Date(log.date).toLocaleDateString() : '',
+            mood: log.mood,
+            energy: log.energy,
+            pain: log.pain
+          })));
+        } else {
+          setTrendData([]);
+        }
+      })
+      .catch(() => setTrendData([]))
+      .finally(() => setTrendLoading(false));
+  }, [user, date]);
+
+  // Fetch last 10 health logs for the user, sorted descending by date
+  const fetchRecentLogs = useCallback(() => {
+    if (!user?.uid) {
+      setRecentLogs([]);
+      return;
+    }
+    setRecentLoading(true);
+    fetch(`/api/healthlog/recent?userId=${user.uid}&limit=10`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.logs)) {
+          // Sort logs descending by date
+          const sorted = [...data.logs].sort((a, b) => {
+            const da = a.date ? new Date(a.date).getTime() : 0;
+            const db = b.date ? new Date(b.date).getTime() : 0;
+            return db - da;
+          });
+          setRecentLogs(sorted);
+        } else {
+          setRecentLogs([]);
+        }
+      })
+      .catch(() => setRecentLogs([]))
+      .finally(() => setRecentLoading(false));
+  }, [user]);
+
+  useEffect(() => {
+    if (activeTab === 'daily') fetchRecentLogs();
+  }, [activeTab, fetchRecentLogs]);
 
   const dailyForm = useForm({
     initialValues: {
@@ -42,15 +114,46 @@ export default function HealthTrackerPage() {
     },
   });
 
-  const handleDailySubmit = (values: typeof dailyForm.values) => {
-    // This will be connected to MongoDB in a later step
-    notifications.show({
-      title: 'Health Data Saved',
-      message: 'Your health metrics have been recorded',
-      c: 'green',
-      icon: <IconCheck size="1.1rem" />,
-    });
-    console.log('Health values:', values);
+  const handleDailySubmit = async (values: typeof dailyForm.values) => {
+    if (!user?.uid) {
+      notifications.show({
+        title: 'Not Authenticated',
+        message: 'You must be logged in to save health data.',
+        c: 'red',
+      });
+      return;
+    }
+    try {
+      // Always use the selected date
+      const safeDate = ensureDate(date);
+      const res = await fetch('/api/healthlog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid, ...values, date: safeDate ? safeDate.toISOString() : undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        notifications.show({
+          title: 'Health Data Saved',
+          message: 'Your health metrics have been recorded',
+          c: 'green',
+          icon: <IconCheck size="1.1rem" />,
+        });
+        fetchRecentLogs(); // Refresh recent logs after save
+      } else {
+        notifications.show({
+          title: 'Save Failed',
+          message: data.error || 'Could not save health data',
+          c: 'red',
+        });
+      }
+    } catch (error) {
+      notifications.show({
+        title: 'Save Failed',
+        message: 'Could not save health data',
+        c: 'red',
+      });
+    }
   };
 
   const toggleVoiceRecording = () => {
@@ -76,11 +179,17 @@ export default function HealthTrackerPage() {
       <Title order={1} mb="md">Health Tracker</Title>
 
       <Group justify="space-between" mb="xl">
-        <TextInput
-          value={date?.toLocaleDateString() || ''}
+        <DatePickerInput
+          value={date}
+          onChange={(value) => {
+            if (typeof value === 'string') {
+              setDate(new Date(value));
+            } else {
+              setDate(value);
+            }
+          }}
           label="Select Date"
-          placeholder="Today's date"
-          readOnly
+          placeholder="Pick a date"
           mx="auto"
           maw={400}
         />
@@ -218,14 +327,19 @@ export default function HealthTrackerPage() {
                 />
 
                 <Group justify="flex-end" mb="md">
-                  <Button
-                    variant={isRecording ? "filled" : "outline"}
-                    c={isRecording ? "red" : "blue"}
-                    onClick={toggleVoiceRecording}
-                    leftSection={<IconMicrophone size="1.1rem" />}
-                  >
-                    {isRecording ? "Stop Recording" : "Voice Input"}
-                  </Button>
+                  <Tooltip label={isRecording ? "Stop Recording" : "Voice Input"}>
+                    <ActionIcon
+                      variant={isRecording ? "filled" : "outline"}
+                      color={isRecording ? "red" : "blue"}
+                      size="xl"
+                      radius="xl"
+                      onClick={toggleVoiceRecording}
+                      aria-label={isRecording ? "Stop Recording" : "Voice Input"}
+                      style={{ boxShadow: isRecording ? '0 0 0 2px #fa5252' : '0 0 0 1px #228be6', transition: 'box-shadow 0.2s' }}
+                    >
+                      <IconMicrophone size="1.5rem" />
+                    </ActionIcon>
+                  </Tooltip>
                 </Group>
               </Card>
             </Grid.Col>
@@ -234,6 +348,43 @@ export default function HealthTrackerPage() {
           <Button type="submit" fullWidth mt="md" mb="xl">
             Save Health Data
           </Button>
+
+          {/* Show last 10 entries */}
+          <Card shadow="sm" p="md" radius="md" withBorder mt="xl">
+            <Title order={3} mb="md">Last 10 Entries</Title>
+            {recentLoading ? (
+              <Text>Loading recent entries...</Text>
+            ) : recentLogs.length === 0 ? (
+              <Text c="dimmed">No recent entries found.</Text>
+            ) : (
+              <Box style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: 4 }}>Date</th>
+                      <th style={{ textAlign: 'left', padding: 4 }}>Mood</th>
+                      <th style={{ textAlign: 'left', padding: 4 }}>Energy</th>
+                      <th style={{ textAlign: 'left', padding: 4 }}>Pain</th>
+                      <th style={{ textAlign: 'left', padding: 4 }}>Sleep</th>
+                      <th style={{ textAlign: 'left', padding: 4 }}>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentLogs.map((log, idx) => (
+                      <tr key={log._id || idx} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: 4 }}>{log.date ? new Date(log.date).toLocaleDateString() : ''}</td>
+                        <td style={{ padding: 4 }}>{log.mood ?? '-'}</td>
+                        <td style={{ padding: 4 }}>{log.energy ?? '-'}</td>
+                        <td style={{ padding: 4 }}>{log.pain ?? '-'}</td>
+                        <td style={{ padding: 4 }}>{log.sleep ?? '-'}</td>
+                        <td style={{ padding: 4 }}>{log.notes ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Box>
+            )}
+          </Card>
         </form>
       )}
 
@@ -242,78 +393,88 @@ export default function HealthTrackerPage() {
           <Card shadow="sm" p="lg" radius="md" withBorder mb="xl">
             <Title order={2} mb="md">Wellness Trends</Title>
             <Box h={300}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={mockMoodData}
-                  margin={{
-                    top: 5,
-                    right: 30,
-                    left: 20,
-                    bottom: 5,
-                  }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="mood" stroke="#8884d8" activeDot={{ r: 8 }} />
-                  <Line type="monotone" dataKey="energy" stroke="#82ca9d" />
-                  <Line type="monotone" dataKey="pain" stroke="#ff7300" />
-                </LineChart>
-              </ResponsiveContainer>
+              {trendLoading ? (
+                <Group justify="center" mt="md"><Text>Loading trends...</Text></Group>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={trendData}
+                    margin={{
+                      top: 5,
+                      right: 30,
+                      left: 20,
+                      bottom: 5,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <RechartsTooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="mood" stroke="#8884d8" activeDot={{ r: 8 }} />
+                    <Line type="monotone" dataKey="energy" stroke="#82ca9d" />
+                    <Line type="monotone" dataKey="pain" stroke="#ff7300" />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </Box>
           </Card>
-
-          <Card shadow="sm" p="lg" radius="md" withBorder mb="xl">
-            <Title order={2} mb="md">AI Health Insights</Title>
-            <Text c="dimmed" mb="md">
-              Gemini-powered health insights based on your tracked data.
-            </Text>
-            <Paper withBorder p="md" radius="md" mb="md">
-              <Text w={500}>Sleep-Mood Correlation</Text>
-              <Text style={{ fontStyle: 'italic' }}>
-                "Your mood scores are consistently higher on days following 7+ hours of sleep. Consider prioritizing sleep for better overall wellbeing."
-              </Text>
-            </Paper>
-            <Paper withBorder p="md" radius="md" mb="md">
-              <Text w={500}>Fibromyalgia Pattern</Text>
-              <Text style={{ fontStyle: 'italic' }}>
-                "Pain levels tend to increase after days with less than 6 hours of sleep or high stress. Consider sleep hygiene improvements."
-              </Text>
-            </Paper>
-            <Paper withBorder p="md" radius="md">
-              <Text w={500}>Supplement Effectiveness</Text>
-              <Text style={{ fontStyle: 'italic' }}>
-                "On days when you take Vitamin D and Magnesium, your energy levels are 23% higher on average."
-              </Text>
-            </Paper>
-          </Card>
-
+          <AIHealthInsightsSection date={date} />
           <Card shadow="sm" p="lg" radius="md" withBorder>
             <Title order={2} mb="md">Health Timeline</Title>
-            <Timeline active={3} bulletSize={24} lineWidth={2}>
-              <Timeline.Item title="May 16" bullet={<IconMoon size={12} />}>
-                <Text c="dimmed" size="sm">Sleep: 7.5h, Mood: 7/10</Text>
-                <Text size="xs" mt={4}>Supplements: Multivitamin, Vitamin D</Text>
-              </Timeline.Item>
-              <Timeline.Item title="May 17" bullet={<IconApple size={12} />}>
-                <Text c="dimmed" size="sm">Nutrition focus day</Text>
-                <Text size="xs" mt={4}>Added more vegetables and protein</Text>
-              </Timeline.Item>
-              <Timeline.Item title="May 18" bullet={<IconHeartRateMonitor size={12} />}>
-                <Text c="dimmed" size="sm">Higher pain day (4/10)</Text>
-                <Text size="xs" mt={4}>Possible correlation with weather change</Text>
-              </Timeline.Item>
-              <Timeline.Item title="May 19" bullet={<IconPill size={12} />}>
-                <Text c="dimmed" size="sm">Started new supplement regimen</Text>
-                <Text size="xs" mt={4}>Added Magnesium and Omega-3</Text>
-              </Timeline.Item>
-              <Timeline.Item title="May 20" bullet={<Icon360View size={12} />}>
-                <Text c="dimmed" size="sm">w: 75.5kg</Text>
-                <Text size="xs" mt={4}>Down 0.5kg from last week</Text>
-              </Timeline.Item>
-            </Timeline>
+            {recentLogs.length === 0 ? (
+              <Text c="dimmed">No health entries to display in timeline.</Text>
+            ) : (
+              <Timeline active={0} bulletSize={24} lineWidth={2}>
+                {recentLogs.slice(0, 5).map((log, index) => {
+                  // Determine icon based on notable metrics
+                  let icon = <IconHeartRateMonitor size={12} />;
+                  let primaryMetric = `Mood: ${log.mood}/10, Energy: ${log.energy}/10`;
+                  let secondaryInfo = '';
+
+                  if (log.sleep && log.sleep >= 8) {
+                    icon = <IconMoon size={12} />;
+                    primaryMetric = `Sleep: ${log.sleep}h, Mood: ${log.mood}/10`;
+                  } else if (log.pain && log.pain >= 6) {
+                    icon = <IconHeartRateMonitor size={12} />;
+                    primaryMetric = `Higher pain day (${log.pain}/10)`;
+                  } else if (log.supplements && log.supplements.length > 0) {
+                    icon = <IconPill size={12} />;
+                    primaryMetric = `Supplements: ${log.supplements.join(', ')}`;
+                  } else if (log.nutrition && log.nutrition.includes('vegetables') && log.nutrition.includes('fruits')) {
+                    icon = <IconApple size={12} />;
+                    primaryMetric = 'Nutrition focus day';
+                  } else if (log.w) {
+                    icon = <Icon360View size={12} />;
+                    primaryMetric = `Weight: ${log.w}kg`;
+                  }
+
+                  // Build secondary info
+                  if (log.supplements && log.supplements.length > 0 && !primaryMetric.includes('Supplements')) {
+                    secondaryInfo = `Supplements: ${log.supplements.join(', ')}`;
+                  } else if (log.nutrition && log.nutrition.length > 0 && !primaryMetric.includes('Nutrition')) {
+                    secondaryInfo = `Nutrition: ${log.nutrition.join(', ')}`;
+                  } else if (log.notes && log.notes.trim()) {
+                    secondaryInfo = log.notes;
+                  } else if (log.w && !primaryMetric.includes('Weight')) {
+                    secondaryInfo = `Weight: ${log.w}kg`;
+                  }
+
+                  const logDate = log.date ? new Date(log.date) : new Date();
+                  const dateTitle = logDate.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric'
+                  });
+
+                  return (
+                    <Timeline.Item key={log._id || index} title={dateTitle} bullet={icon}>
+                      <Text c="dimmed" size="sm">{primaryMetric}</Text>
+                      {secondaryInfo && <Text size="xs" mt={4}>{secondaryInfo}</Text>}
+                    </Timeline.Item>
+                  );
+                })}
+              </Timeline>
+            )}
           </Card>
         </>
       )}

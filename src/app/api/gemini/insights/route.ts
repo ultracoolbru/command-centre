@@ -1,35 +1,30 @@
 "use server";
 
-import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { generateInsights } from '@/lib/gemini';
-import { auth } from '@/lib/firebase';
+import clientPromise from '@/lib/mongodb';
 import { AIInsight } from '@/types/schemas';
+import { NextRequest, NextResponse } from 'next/server';
 
-// Helper to get user ID from session
-const getUserId = async () => {
-  const session = await auth.currentUser;
-  if (!session) {
-    throw new Error('Not authenticated');
-  }
-  return session.uid;
-};
 
 // Generate AI insights based on user data
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getUserId();
-    const { category, data } = await req.json();
+    // Extract userId from request body
+    const { userId, category, data } = await req.json();
+    console.log('Received insights request:', { userId, category, dataLength: data?.length });
 
-    if (!category || !data) {
+    if (!userId || !category || !data) {
+      console.error('Missing required fields:', { userId: !!userId, category: !!category, data: !!data });
       return NextResponse.json(
-        { error: 'Category and data are required' },
+        { error: 'userId, category and data are required' },
         { status: 400 }
       );
     }
 
     // Generate insights using Gemini
+    console.log('Generating insights for category:', category, 'with data:', data);
     const insights = await generateInsights(data, category);
+    console.log('Generated insights:', insights);
 
     // Store the insights in the database
     const client = await clientPromise;

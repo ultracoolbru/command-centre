@@ -150,6 +150,9 @@ export async function generateInsights(data: any, category: string) {
       throw new Error('Gemini API can only be called server-side');
     }
 
+    console.log('Starting generateInsights with category:', category);
+    console.log('GEMINI_API_KEY available:', !!process.env.GEMINI_API_KEY);
+
     const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-pro', safetySettings: safetySettings });
 
     let specificPrompt = "";
@@ -172,6 +175,21 @@ Based on this data, provide 2-4 concise and actionable insights. Focus on:
 Format the response as a JSON array of insight objects, each with a "title" (a brief heading for the insight) and "description" (the detailed insight).
 Example: [{"title": "Productivity Peak", "description": "You seem to accomplish most of your priorities in the morning."}]
 `;
+    } else if (category === "health") {
+      specificPrompt = `
+Analyze the following health tracking data from the past week and provide 3-4 meaningful insights:
+
+Health Data: ${JSON.stringify(data)}
+
+Based on this health data, provide actionable insights focusing on:
+- Patterns in mood, energy, pain, and sleep relationships
+- Correlations between nutrition/supplements and wellness metrics
+- Trends that could indicate areas for improvement
+- Recommendations for optimizing health based on the data patterns
+
+Format the response as a JSON array of insight objects, each with a "title" (a brief heading for the insight) and "description" (the detailed insight and recommendation).
+Example: [{"title": "Sleep-Mood Connection", "description": "Your mood scores are consistently higher on days following 7+ hours of sleep. Consider prioritizing sleep hygiene for better overall wellbeing."}]
+`;
     } else {
       // Fallback to the original generic prompt if category is different
       specificPrompt = `
@@ -183,12 +201,30 @@ Example: [{"title": "Productivity Peak", "description": "You seem to accomplish 
     `;
     }
 
-    const result = await model.generateContent(specificPrompt);
+    console.log('Generated prompt for category:', category);
+    console.log('Prompt length:', specificPrompt.length); const result = await model.generateContent(specificPrompt);
     const response = result.response.text();
 
+    console.log('Gemini raw response:', response);
+    console.log('Response length:', response.length);
+
     try {
-      return JSON.parse(response);
+      // Clean the response by removing markdown code blocks if present
+      let cleanedResponse = response.trim();
+      if (cleanedResponse.startsWith('```json')) {
+        cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanedResponse.startsWith('```')) {
+        cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+
+      console.log('Cleaned response:', cleanedResponse);
+
+      const parsedResponse = JSON.parse(cleanedResponse);
+      console.log('Successfully parsed Gemini response:', parsedResponse);
+      return parsedResponse;
     } catch (parseError) {
+      console.error('Failed to parse Gemini response as JSON:', parseError);
+      console.log('Raw response that failed to parse:', response);
       // If parsing fails, return a default structured response
       return [{
         title: 'Data Analysis',
@@ -431,4 +467,122 @@ function parseGeminiSummaries(text: string) {
   validSummaries.sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
 
   return validSummaries;
+}
+
+export async function generateMotivationalQuotes(count: number = 10, theme: string = 'general motivation') {
+  try {
+    if (typeof window !== 'undefined') {
+      throw new Error('Gemini API can only be called server-side');
+    }
+
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || 'gemini-pro',
+      safetySettings: safetySettings,
+    });
+
+    const prompt = `Generate ${count} unique, inspiring motivational quotes about ${theme}. 
+    
+    Requirements:
+    - Each quote should be between 20-150 characters
+    - Include both the quote text and a realistic author (can be famous people, philosophers, or "Unknown")
+    - Focus on themes like personal growth, perseverance, success, productivity, and positive mindset
+    - Make them genuinely inspiring and actionable
+    - Avoid clichés and overused phrases
+    - Each quote should be unique and meaningful
+    
+    Format your response as a JSON array like this:
+    [
+      {
+        "text": "Quote text here",
+        "author": "Author Name"
+      },
+      ...
+    ]
+    
+    Only return the JSON array, no additional text.`;
+
+    const generationConfig = {
+      temperature: 0.8,
+      topK: 40,
+      topP: 0.9,
+      maxOutputTokens: 2048,
+    };
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig,
+    });
+
+    const response = await result.response;
+    const text = response.text();
+
+    if (!text || text.trim() === '') {
+      throw new Error('Empty response from Gemini');
+    }
+
+    // Parse the JSON response
+    let quotesData;
+    try {
+      // Remove any markdown formatting if present
+      const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      quotesData = JSON.parse(cleanText);
+    } catch (parseError) {
+      console.error('Failed to parse quotes JSON:', parseError);
+      throw new Error('Invalid JSON response from Gemini');
+    }
+
+    // Validate and format the quotes
+    if (!Array.isArray(quotesData)) {
+      throw new Error('Response is not an array');
+    }
+
+    const formattedQuotes = quotesData
+      .filter(quote => quote.text && quote.author && typeof quote.text === 'string' && typeof quote.author === 'string')
+      .slice(0, count)
+      .map((quote, index) => ({
+        id: `ai-quote-${Date.now()}-${index}`,
+        text: quote.text.trim(),
+        author: quote.author.trim()
+      }));
+
+    if (formattedQuotes.length === 0) {
+      throw new Error('No valid quotes in response');
+    }
+
+    return formattedQuotes;
+
+  } catch (error) {
+    console.error('Error generating motivational quotes:', error);
+
+    // Return basic AI-generated fallback quotes
+    const fallbackQuotes = [
+      {
+        id: `ai-fallback-${Date.now()}-1`,
+        text: "Every challenge you face today is shaping the stronger version of yourself for tomorrow.",
+        author: "AI Wisdom"
+      },
+      {
+        id: `ai-fallback-${Date.now()}-2`,
+        text: "Progress isn't about perfection; it's about taking one more step than yesterday.",
+        author: "AI Insight"
+      },
+      {
+        id: `ai-fallback-${Date.now()}-3`,
+        text: "Your potential grows every time you choose growth over comfort.",
+        author: "AI Motivation"
+      },
+      {
+        id: `ai-fallback-${Date.now()}-4`,
+        text: "Small consistent actions compound into extraordinary achievements.",
+        author: "AI Philosophy"
+      },
+      {
+        id: `ai-fallback-${Date.now()}-5`,
+        text: "The person you are becoming is worth every effort you invest today.",
+        author: "AI Encouragement"
+      }
+    ];
+
+    return fallbackQuotes.slice(0, count);
+  }
 }

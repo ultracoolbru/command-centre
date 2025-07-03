@@ -1,8 +1,9 @@
 "use client";
 
+import MotivationQuotes from '@/components/MotivationQuotes';
 import { useAuth } from '@/lib/auth-context';
-import { AppShell, Avatar, Box, Burger, Group, Menu, NavLink, ScrollArea, Text, UnstyledButton, rem, useMantineTheme } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { AppShell, Avatar, Box, Burger, Container, Group, Menu, NavLink, ScrollArea, Text, UnstyledButton, rem, useMantineTheme } from '@mantine/core';
+import { useMediaQuery, useViewportSize } from '@mantine/hooks';
 import { IconBell, IconBook, IconBulb, IconCalendarTime, IconChecklist, IconCode, IconHeartRateMonitor, IconLogout, IconNotebook, IconSettings, IconTerminal, IconUser } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -20,7 +21,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, logOut } = useAuth();
+  const { height, width } = useViewportSize();
+
+  // Multiple breakpoints for better responsive design
+  const isSmallMobile = useMediaQuery('(max-width: 480px)');
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const isTablet = useMediaQuery('(min-width: 769px) and (max-width: 1024px)');
+  const isDesktop = useMediaQuery('(min-width: 1025px)');
 
   // Fetch user profile data including avatar URL
   useEffect(() => {
@@ -39,6 +46,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     fetchUserProfile();
   }, [user?.uid]);
+
+  // Auto-close navbar on mobile when clicking outside
+  useEffect(() => {
+    if (isMobile && opened) {
+      const handleClickOutside = () => setOpened(false);
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [isMobile, opened]);
 
   const handleLogout = async () => {
     await logOut();
@@ -63,22 +79,33 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <AppShell
       padding="md"
-      navbar={{ width: { sm: 200, lg: 300 }, breakpoint: 'md' }}
+      navbar={{
+        width: { base: 200, sm: 250, md: 300 },
+        breakpoint: 'sm',
+        collapsed: { mobile: !opened }
+      }}
       header={{ height: 60 }}
       styles={{
-        main: (theme: any) => ({
-          backgroundColor: theme.colorScheme === 'dark'
-            ? theme.colors.dark[8]
-            : theme.colors.gray[0]
-        })
+        main: {
+          backgroundColor: 'var(--mantine-color-dark-7)',
+          minHeight: '100vh'
+        },
+        navbar: {
+          backgroundColor: 'var(--mantine-color-dark-6)',
+          borderRight: '1px solid var(--mantine-color-dark-4)'
+        },
+        header: {
+          backgroundColor: 'var(--mantine-color-dark-6)',
+          borderBottom: '1px solid var(--mantine-color-dark-4)'
+        }
       }}
     >
       <AppShell.Navbar
         p="md"
-        hidden={!opened}
         w={{ base: '100%', sm: 200, lg: 300 }}
         role="navigation"
         aria-label="Main navigation"
+        id="main-navigation"
       >
         <Box style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           <ScrollArea style={{ flex: 1 }}>
@@ -90,7 +117,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 active={pathname === item.path}
                 component={Link}
                 href={item.path}
-                onClick={() => setOpened(false)}
+                onClick={() => {
+                  if (item.onClick) {
+                    item.onClick();
+                  }
+                  setOpened(false);
+                }}
                 style={{ marginBottom: '0.5rem' }}
               />
             ))}
@@ -104,7 +136,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     width: '100%',
                     padding: theme.spacing.xs,
                     borderRadius: theme.radius.sm,
-                    color: theme.colors.dark[0],
+                    color: 'var(--mantine-color-gray-0)',
+                    backgroundColor: 'transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
                   }}
                 >
                   <Group>
@@ -112,7 +151,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       {!avatarUrl && (user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U')}
                     </Avatar>
                     <div style={{ flex: 1 }}>
-                      <Text size="sm" fw={500}>
+                      <Text size="sm" fw={500} c="white">
                         {user?.email || 'User'}
                       </Text>
                     </div>
@@ -143,17 +182,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               opened={opened}
               onClick={() => setOpened((o) => !o)}
               size="sm"
-              color={theme.colors.gray[6]}
+              color="white"
               mr="xl"
               aria-label={opened ? 'Close navigation' : 'Open navigation'}
               aria-expanded={opened}
               aria-controls="main-navigation"
             />
           )}
-          <Text component="h1" fw={700} size="lg">Command Dashboard</Text>
+          <Text component="h1" fw={700} size="lg" c="white">Command Dashboard</Text>
         </div>
       </AppShell.Header>
-      {children}
+      <AppShell.Main>
+        <Container size="xl" px="md">
+          <MotivationQuotes />
+          {children}
+        </Container>
+      </AppShell.Main>
     </AppShell>
   );
 }

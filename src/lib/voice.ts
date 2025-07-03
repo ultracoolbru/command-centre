@@ -9,7 +9,7 @@ declare global {
 import { useCallback, useEffect, useState } from 'react';
 
 // Custom hook for voice recognition
-export function useVoiceRecognition() {
+export function useVoiceRecognition(language: string = 'en-US') {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -29,11 +29,11 @@ export function useVoiceRecognition() {
     const recognitionInstance = new SpeechRecognition();
     recognitionInstance.continuous = false; // Changed to false to prevent continuous interim results
     recognitionInstance.interimResults = false; // Changed to false to only get final results
-    recognitionInstance.lang = 'en-US'; // Set language to English (United States) - TODO: Set this dynamically based on user preference (in the settings tab)
+    recognitionInstance.lang = language; // Set language dynamically based on user preference
     recognitionInstance.maxAlternatives = 1;
 
     return recognitionInstance;
-  }, []);
+  }, [language]);
 
   // Start listening
   const startListening = useCallback(() => {
@@ -115,7 +115,7 @@ export function useVoiceRecognition() {
 }
 
 // Voice command processor
-export function useVoiceCommands(commands: Record<string, (args?: string) => void>) {
+export function useVoiceCommands(commands: Record<string, (args?: string) => void>, language: string = 'en-US') {
   const {
     isListening,
     transcript,
@@ -123,7 +123,7 @@ export function useVoiceCommands(commands: Record<string, (args?: string) => voi
     startListening,
     stopListening,
     browserSupportsSpeechRecognition
-  } = useVoiceRecognition();
+  } = useVoiceRecognition(language);
 
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
 

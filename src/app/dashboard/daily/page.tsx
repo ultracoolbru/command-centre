@@ -761,6 +761,7 @@ export default function DailyPlannerPage() {
                     size="xl"
                     radius="xl"
                     aria-label={isVoiceMode ? "Stop Voice Mode" : "Start Voice Mode"}
+                    style={{ boxShadow: isRecording ? '0 0 0 2px #fa5252' : '0 0 0 1px #228be6', transition: 'box-shadow 0.2s' }}
                   >
                     <IconMicrophone size="1.5rem" />
                   </ActionIcon>

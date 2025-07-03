@@ -2,6 +2,7 @@
 
 import clientPromise from "@/lib/mongodb";
 import { getValidatedUserId } from "@/lib/server-auth";
+import { sendTaskCreatedNotification } from "@/lib/telegram";
 import { Goal, GoalSchema } from "@/types/schemas";
 import { ObjectId } from "mongodb";
 
@@ -58,7 +59,14 @@ export async function createGoal(
         if (result.acknowledged) {
             const createdGoal: Goal = {
                 id: result.insertedId.toString(),
-                ...goalDocument,
+                userId: goalDocument.userId,
+                title: goalDocument.title,
+                description: goalDocument.description,
+                category: goalDocument.category,
+                progress: goalDocument.progress,
+                status: goalDocument.status,
+                createdAt: goalDocument.createdAt,
+                updatedAt: goalDocument.updatedAt,
             };
 
             return {
@@ -342,6 +350,7 @@ export async function createTask(
         priority: 'low' | 'medium' | 'high';
         tags: string[];
         goalId?: string;
+        dueDate?: string;
     }
 ): Promise<{ success: boolean; message: string; task?: any }> {
     try {
@@ -376,6 +385,7 @@ export async function createTask(
             priority: values.priority,
             tags: values.tags || [],
             goalId: values.goalId || null,
+            dueDate: values.dueDate ? new Date(values.dueDate) : null,
             createdAt: new Date(),
             updatedAt: new Date(),
         };
@@ -385,8 +395,29 @@ export async function createTask(
         if (result.acknowledged) {
             const createdTask = {
                 id: result.insertedId.toString(),
-                ...taskDocument,
+                userId: taskDocument.userId,
+                title: taskDocument.title,
+                description: taskDocument.description,
+                completed: taskDocument.completed,
+                priority: taskDocument.priority,
+                tags: taskDocument.tags,
+                goalId: taskDocument.goalId,
+                dueDate: taskDocument.dueDate,
+                createdAt: taskDocument.createdAt,
+                updatedAt: taskDocument.updatedAt,
             };
+
+            // Send Telegram notification (non-blocking)
+            sendTaskCreatedNotification({
+                title: taskDocument.title,
+                description: taskDocument.description,
+                priority: taskDocument.priority,
+                tags: taskDocument.tags,
+                goalId: taskDocument.goalId || undefined,
+            }).catch(error => {
+                // Log error but don't fail the task creation
+                console.error('Failed to send Telegram notification:', error);
+            });
 
             return {
                 success: true,
@@ -433,6 +464,7 @@ export async function getUserTasks(userId: string): Promise<{ success: boolean; 
             tags: task.tags || [],
             goal: task.goalId || undefined, // Map goalId to goal for compatibility
             goalId: task.goalId,
+            dueDate: task.dueDate,
             createdAt: task.createdAt,
             updatedAt: task.updatedAt,
         }));
@@ -555,6 +587,7 @@ export async function editTask(
         priority: 'low' | 'medium' | 'high';
         tags: string[];
         goalId?: string;
+        dueDate?: string;
     }
 ): Promise<{ success: boolean; message: string; task?: any }> {
     try {
@@ -599,6 +632,7 @@ export async function editTask(
                     priority: values.priority,
                     tags: values.tags || [],
                     goalId: values.goalId || null,
+                    dueDate: values.dueDate ? new Date(values.dueDate) : null,
                     updatedAt: new Date()
                 }
             }
@@ -634,6 +668,7 @@ export async function editTask(
             tags: updatedTask.tags || [],
             goal: updatedTask.goalId || undefined,
             goalId: updatedTask.goalId,
+            dueDate: updatedTask.dueDate,
             createdAt: updatedTask.createdAt,
             updatedAt: updatedTask.updatedAt,
         };
