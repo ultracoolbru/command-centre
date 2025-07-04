@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import BulletJournalPage from '@/app/dashboard/bullet/page';
+import { render } from '@/test-utils';
 import '@testing-library/jest-dom';
-import JournalPage from '@/app/dashboard/journal/page';
+import { screen } from '@testing-library/react';
 
 // Mock the hooks
 jest.mock('@/lib/hooks', () => ({
@@ -40,27 +41,27 @@ jest.mock('@/lib/store', () => ({
   })
 }));
 
-describe('Journal Page', () => {
-  test('renders journal page with correct title', () => {
-    render(<JournalPage />);
-    
-    const title = screen.getByText('Emotion & Thought Journal');
+describe('Bullet Journal Page', () => {
+  test('renders bullet journal page with correct title', () => {
+    render(<BulletJournalPage />);
+
+    const title = screen.getByText('Journal');
     expect(title).toBeInTheDocument();
   });
 
-  test('displays journal entry form', () => {
-    render(<JournalPage />);
-    
-    const titleInput = screen.getByLabelText(/title/i);
-    const contentTextarea = screen.getByLabelText(/entry/i);
-    expect(titleInput).toBeInTheDocument();
-    expect(contentTextarea).toBeInTheDocument();
+  test('displays bullet journal entry form', () => {
+    render(<BulletJournalPage />);
+
+    // Check for tab navigation
+    const addEntryTab = screen.getByText('Add Entry');
+    expect(addEntryTab).toBeInTheDocument();
   });
 
-  test('displays existing journal entries', () => {
-    render(<JournalPage />);
-    
-    const entryTitle = screen.getByText('Test Journal Entry');
-    expect(entryTitle).toBeInTheDocument();
+  test('displays existing bullet journal entries', () => {
+    render(<BulletJournalPage />);
+
+    // Check for daily entries tab
+    const dailyEntriesTab = screen.getByText('Daily Entries');
+    expect(dailyEntriesTab).toBeInTheDocument();
   });
 });

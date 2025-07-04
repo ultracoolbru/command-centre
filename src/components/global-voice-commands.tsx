@@ -48,7 +48,7 @@ export function GlobalVoiceCommands({ children }: { children: React.ReactNode })
       });
     },
     'journal': () => {
-      router.push('/dashboard/journal');
+      router.push('/dashboard/bullet');
       notifications.show({
         title: 'Voice Command',
         message: 'Navigating to journal',

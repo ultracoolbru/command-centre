@@ -4,7 +4,7 @@ import MotivationQuotes from '@/components/MotivationQuotes';
 import { useAuth } from '@/lib/auth-context';
 import { AppShell, Avatar, Box, Burger, Container, Group, Menu, NavLink, ScrollArea, Text, UnstyledButton, rem, useMantineTheme } from '@mantine/core';
 import { useMediaQuery, useViewportSize } from '@mantine/hooks';
-import { IconBell, IconBook, IconBulb, IconCalendarTime, IconChecklist, IconCode, IconHeartRateMonitor, IconLogout, IconNotebook, IconSettings, IconTerminal, IconUser } from '@tabler/icons-react';
+import { IconBell, IconBook, IconBulb, IconCalendarTime, IconChecklist, IconCode, IconHeartRateMonitor, IconLogout, IconSettings, IconTerminal, IconUser } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -65,7 +65,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { label: 'Daily Planner', icon: <IconCalendarTime size="1.2rem" stroke={1.5} />, path: '/dashboard/daily' },
     { label: 'Tasks & Goals', icon: <IconChecklist size="1.2rem" stroke={1.5} />, path: '/dashboard/tasks' },
     { label: 'Health Tracker', icon: <IconHeartRateMonitor size="1.2rem" stroke={1.5} />, path: '/dashboard/health' },
-    { label: 'Journal', icon: <IconNotebook size="1.2rem" stroke={1.5} />, path: '/dashboard/journal' },
     { label: 'Bullet Journal', icon: <IconBook size="1.2rem" stroke={1.5} />, path: '/dashboard/bullet' },
     { label: 'Projects', icon: <IconCode size="1.2rem" stroke={1.5} />, path: '/dashboard/projects' },
     { label: 'Echo CLI', icon: <IconTerminal size="1.2rem" stroke={1.5} />, path: '/dashboard/echo' },
