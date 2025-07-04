@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     // Store the insights in the database
     const client = await clientPromise;
-    const db = client.db('command-dashboard');
+    const db = client.db(process.env.MONGODB_DB || 'commandCentreDb0');
     const collection = db.collection('aiInsights');
 
     const now = new Date();

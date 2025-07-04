@@ -49,7 +49,7 @@ const getCollection = async <T extends BaseDocument>(
     throw new Error('MongoDB client is not initialized');
   }
   const client = await clientPromise;
-  const db = client.db('command-dashboard');
+  const db = client.db(process.env.MONGODB_DB || 'commandCentreDb0');
   return db.collection(collectionName);
 };
 

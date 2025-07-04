@@ -1,8 +1,8 @@
-import { sanitizeHtml, sanitizeMongoQuery, rateLimit, validateEnvVars } from '@/lib/security';
-import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import clientPromise from '@/lib/mongodb';
 import { auth } from '@/lib/firebase';
+import clientPromise from '@/lib/mongodb';
+import { rateLimit, sanitizeHtml, sanitizeMongoQuery, validateEnvVars } from '@/lib/security';
+import { headers } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
 
 // Required environment variables
 const requiredEnvVars = [
@@ -61,7 +61,7 @@ export async function getSecureCollection(collectionName: string) {
   }
 
   const client = await clientPromise;
-  const db = client.db('command-dashboard');
+  const db = client.db(process.env.MONGODB_DB || 'commandCentreDb0');
   return db.collection(sanitizedName);
 }
 
